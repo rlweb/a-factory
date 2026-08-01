@@ -1,5 +1,10 @@
 import { readFileSync } from "node:fs";
-import { type Config, createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
+import {
+  type Config,
+  createOpencodeClient,
+  createOpencodeServer,
+  type Event,
+} from "@opencode-ai/sdk";
 import { mergeAgents } from "./agents.js";
 import { MODEL, SERVER_TIMEOUT_MS } from "./config.js";
 import { log } from "./log.js";
@@ -49,12 +54,59 @@ export async function withOpencode<T>(
   });
   log(`opencode: server up at ${server.url}`);
   const client = createOpencodeClient({ baseUrl: server.url });
+  streamAgentEvents(client);
   try {
     return await fn({ client, server });
   } finally {
     server.close();
     log("opencode: server closed");
   }
+}
+
+/**
+ * Background-tail the server's SSE event stream so the Actions log shows what the
+ * agent is doing between "prompt sent" and "prompt returned": tool calls, file
+ * edits, and errors. The stream ends when the server closes; failures here must
+ * never break a run, so everything is swallowed.
+ */
+function streamAgentEvents(client: Opencode["client"]): void {
+  void (async () => {
+    // A tool part updates many times (streaming deltas); log each status once.
+    const seen = new Set<string>();
+    try {
+      const events = await client.event.subscribe();
+      for await (const event of events.stream as AsyncIterable<Event>) {
+        switch (event.type) {
+          case "message.part.updated": {
+            const part = event.properties.part;
+            if (part.type !== "tool" || part.state.status === "pending") break;
+            const key = `${part.id}:${part.state.status}`;
+            if (seen.has(key)) break;
+            seen.add(key);
+            const state = part.state;
+            const detail = (
+              state.status === "error"
+                ? state.error
+                : ("title" in state ? state.title : undefined) || JSON.stringify(state.input)
+            )?.slice(0, 200);
+            log(`opencode: [tool] ${part.tool} ${state.status}${detail ? ` — ${detail}` : ""}`);
+            break;
+          }
+          case "file.edited":
+            log(`opencode: [edit] ${event.properties.file}`);
+            break;
+          case "session.error":
+            log(`opencode: [error] ${JSON.stringify(event.properties.error ?? {})}`);
+            break;
+          case "session.idle":
+            log(`opencode: [idle] session ${event.properties.sessionID} finished its turn`);
+            break;
+        }
+      }
+    } catch {
+      // Stream torn down (server closed) or unsupported — progress logging only.
+    }
+  })();
 }
 
 /**
