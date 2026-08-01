@@ -53,7 +53,7 @@ jobs:
     if: inputs.event_name == 'issues' && inputs.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # repository_dispatch (build/epic kickoff) requires contents:write
       issues: write
     steps:
       - uses: actions/checkout@v6
@@ -72,7 +72,7 @@ jobs:
       (inputs.event_name == 'repository_dispatch' && inputs.action == 'factory-epic')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # dispatches factory-build for ready child tickets
       issues: write
     steps:
       - uses: actions/checkout@v6
@@ -174,7 +174,7 @@ jobs:
       (inputs.event_name == 'issues' && inputs.action == 'labeled' && inputs.label_name == 'answer-approved')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # dispatches factory-build when an answer resumes the agent
       issues: write
     steps:
       - uses: actions/checkout@v6
