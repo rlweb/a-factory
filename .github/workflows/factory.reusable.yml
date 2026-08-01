@@ -40,6 +40,8 @@ on:
 #   FACTORY_GATE_MAX_FILES, FACTORY_PROTECTED_PATHS (comma-separated),
 #   FACTORY_TRUSTED_ASSOCIATIONS (comma-separated), FACTORY_SERVER_TIMEOUT_MS
 # The model is NOT a variable — set it in the consumer repo's opencode.json.
+# Repo setup (deps/caches) is NOT a variable either — commit an optional local
+# action at .github/actions/factory-setup; the build job runs it when present.
 env:
   FACTORY_VALIDATION_ATTEMPTS: ${{ vars.FACTORY_VALIDATION_ATTEMPTS }}
   FACTORY_QUESTION_ROUNDS: ${{ vars.FACTORY_QUESTION_ROUNDS }}
@@ -116,6 +118,17 @@ jobs:
             core.setOutput('issue', String(num));
             core.setOutput('title', issue.title ?? '');
             core.exportVariable('RESOLVED_ISSUE_BODY', issue.body ?? '');
+      # Optional consumer setup: commit .github/actions/factory-setup/action.yml in
+      # the consuming repo for step-level setup before the agent runs — dependency
+      # installs, toolchains, caches (e.g. actions/cache for Playwright browsers).
+      # Skipped silently when absent.
+      - name: Check for consumer setup action
+        id: setup-action
+        shell: bash
+        run: echo "exists=$([ -f .github/actions/factory-setup/action.yml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Consumer setup action
+        if: steps.setup-action.outputs.exists == 'true'
+        uses: ./.github/actions/factory-setup
       - name: Implement (agent + validation gate)
         id: impl
         uses: rlweb/a-factory@main

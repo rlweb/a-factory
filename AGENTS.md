@@ -37,7 +37,7 @@ pnpm vitest run src/lib/gate.test.ts
   - `schemas.ts`, `github.ts`, `validate.ts` — JSON schemas for agent output, GitHub API helpers, validation runner.
 - **`index.ts`** — public API surface: pure logic re-exported as primary; orchestrator `run()`s exported but deliberately secondary (they touch env/I/O).
 
-The reusable workflow routes GitHub events (issue opened → triage, labeled/dispatch → implement or epic, comment → resume, PR → review) to CLI subcommands. The implement→review handoff happens in a single run and dispatch uses `repository_dispatch` — both are consequences of the `GITHUB_TOKEN` no-cascade rule; preserve them when editing workflows.
+The reusable workflow routes GitHub events (issue opened → triage, labeled/dispatch → implement or epic, comment → resume, PR → review) to CLI subcommands. The build job runs the consumer's optional `.github/actions/factory-setup` local composite action (deps/caches, e.g. Playwright) before the agent, when the file exists in the checkout. The implement→review handoff happens in a single run and dispatch uses `repository_dispatch` — both are consequences of the `GITHUB_TOKEN` no-cascade rule; preserve them when editing workflows.
 
 ## Conventions
 

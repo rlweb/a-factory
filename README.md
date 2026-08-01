@@ -47,7 +47,8 @@ What stays per-repo, and why: `validate.yml` (runs the *consuming* repo's own
 validation — the factory can't know your build; it's the required status check), the
 issue forms (committed so they render in the issue chooser — re-copy from
 `consumer-template/` on the rare form update, or add a scheduled sync workflow once
-you're past ~10 repos), and the optional `factory-comment.yml` (`/oc` interface).
+you're past ~10 repos), the optional `factory-comment.yml` (`/oc` interface), and the
+optional `.github/actions/factory-setup` action (build-time setup — see below).
 
 ```yaml
 # .github/workflows/factory.yml — the entire per-repo footprint
@@ -175,6 +176,33 @@ Encoding notes:
 
 The only secret is `OPENCODE_API_KEY`; everything else runs on the workflow's own
 `GITHUB_TOKEN`.
+
+### Repo setup before builds (deps, caches, Playwright)
+
+If the agent's validation needs anything installed — dependencies, browsers,
+toolchains — commit a local composite action at
+`.github/actions/factory-setup/action.yml` in the consuming repo. The factory's build
+job detects it and runs it in your checkout before the agent starts; absent, the step
+is skipped silently. Because it's a composite action it can use real workflow steps,
+including `actions/cache`:
+
+```yaml
+# .github/actions/factory-setup/action.yml
+name: factory setup
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+    - run: corepack enable && pnpm install --frozen-lockfile
+      shell: bash
+    - run: pnpm exec playwright install --with-deps chromium
+      shell: bash
+```
+
+Note: every `run:` step in a composite action must declare an explicit `shell:`.
 
 ## Develop
 
