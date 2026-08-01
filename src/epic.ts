@@ -1,5 +1,12 @@
 import { LABELS } from "./lib/config.js";
-import { addLabels, comment, createChildIssue, dispatchBuild, removeLabel } from "./lib/github.js";
+import {
+  addLabels,
+  comment,
+  createChildIssue,
+  dispatchBuild,
+  getIssue,
+  removeLabel,
+} from "./lib/github.js";
 import { log } from "./lib/log.js";
 import { promptJSON, withOpencode } from "./lib/opencode.js";
 import { decompositionSchema } from "./lib/schemas.js";
@@ -17,11 +24,15 @@ interface Decomposition {
 
 export async function run() {
   const epicNumber = Number(process.env.ISSUE_NUMBER);
-  const epicTitle = process.env.ISSUE_TITLE ?? "";
-  const epicBody = process.env.ISSUE_BODY ?? "";
   // "auto" creates children immediately; otherwise just proposes them in a comment.
   const mode = (process.env.DECOMPOSE_MODE ?? "propose").toLowerCase();
   if (!epicNumber) throw new Error("ISSUE_NUMBER is required");
+
+  // The epic job doesn't resolve the issue into env — fetch it ourselves.
+  const envTitle = process.env.ISSUE_TITLE ?? "";
+  const { title: epicTitle, body: epicBody } = envTitle
+    ? { title: envTitle, body: process.env.ISSUE_BODY ?? "" }
+    : await getIssue(epicNumber);
 
   log(`epic: start for #${epicNumber} "${epicTitle}" (mode ${mode})`);
   const plan = await withOpencode(async ({ client }) => {

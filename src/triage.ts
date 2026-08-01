@@ -1,5 +1,12 @@
 import { LABELS } from "./lib/config.js";
-import { addLabels, comment, dispatchBuild, dispatchEpic, removeLabel } from "./lib/github.js";
+import {
+  addLabels,
+  comment,
+  dispatchBuild,
+  dispatchEpic,
+  getIssue,
+  removeLabel,
+} from "./lib/github.js";
 import { log } from "./lib/log.js";
 import { promptJSON, withOpencode } from "./lib/opencode.js";
 import { triageSchema } from "./lib/schemas.js";
@@ -15,9 +22,13 @@ interface Triage {
 
 export async function run() {
   const issueNumber = Number(process.env.ISSUE_NUMBER);
-  const issueTitle = process.env.ISSUE_TITLE ?? "";
-  const issueBody = process.env.ISSUE_BODY ?? "";
   if (!issueNumber) throw new Error("ISSUE_NUMBER is required");
+
+  // The triage job doesn't resolve the issue into env — fetch it ourselves.
+  const envTitle = process.env.ISSUE_TITLE ?? "";
+  const { title: issueTitle, body: issueBody } = envTitle
+    ? { title: envTitle, body: process.env.ISSUE_BODY ?? "" }
+    : await getIssue(issueNumber);
 
   log(`triage: start for issue #${issueNumber} "${issueTitle}"`);
   const verdict = await withOpencode(async ({ client }) => {

@@ -39,7 +39,13 @@ runs:
       run: |
         cd "$GITHUB_ACTION_PATH"
         npm install --no-audit --no-fund
+        # npm's script-approval may skip postinstalls; opencode-ai's downloads the
+        # `opencode` binary the SDK spawns, so run it explicitly. Idempotent.
+        (cd node_modules/opencode-ai && node postinstall.mjs)
         npm run build
     - name: Run factory ${{ inputs.command }}
       shell: bash
-      run: node "$GITHUB_ACTION_PATH/dist/bin/factory.js" "${{ inputs.command }}"
+      # node_modules/.bin on PATH so the SDK's `spawn opencode` resolves.
+      run: |
+        export PATH="$GITHUB_ACTION_PATH/node_modules/.bin:$PATH"
+        node "$GITHUB_ACTION_PATH/dist/bin/factory.js" "${{ inputs.command }}"

@@ -118,6 +118,12 @@ export async function dispatchEpic(issueNumber: number) {
   });
 }
 
+/** Title and body of an issue — for jobs whose workflow doesn't resolve them into env. */
+export async function getIssue(issue: number): Promise<{ title: string; body: string }> {
+  const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: issue });
+  return { title: data.title ?? "", body: data.body ?? "" };
+}
+
 /** Current label names on an issue. */
 export async function issueLabels(issue: number): Promise<string[]> {
   const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: issue });
