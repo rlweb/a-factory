@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - name: Triage
-        uses: yourorg/factory@v1
+        uses: rlweb/a-factory@v1
         with: { command: triage }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - name: Decompose epic
-        uses: yourorg/factory@v1
+        uses: rlweb/a-factory@v1
         with: { command: epic }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -118,7 +118,7 @@ jobs:
             core.exportVariable('RESOLVED_ISSUE_BODY', issue.body ?? '');
       - name: Implement (agent + validation gate)
         id: impl
-        uses: yourorg/factory@v1
+        uses: rlweb/a-factory@v1
         with: { command: implement }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -159,7 +159,7 @@ jobs:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - name: Review + risk gate
-        uses: yourorg/factory@v1
+        uses: rlweb/a-factory@v1
         with: { command: review }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -180,7 +180,7 @@ jobs:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - name: Decide resume
-        uses: yourorg/factory@v1
+        uses: rlweb/a-factory@v1
         with: { command: resume }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

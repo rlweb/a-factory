@@ -1,6 +1,11 @@
 # Factory monorepo
 
-Autonomous issue-to-merge software factory, packaged for use across many repos.
+Autonomous issue-to-merge software factory built entirely on GitHub primitives:
+**issues** are the work queue (issue forms file the work, labels drive state, comments
+carry questions and answers), and **Actions** is the runtime (a reusable workflow
+routes issue events to agent jobs — no servers, no webhooks, no external
+infrastructure). Open an issue, label it `ready`, and the factory plans, implements,
+validates, opens a PR, and merges it if the risk gate passes.
 
 ## How it works
 
@@ -48,7 +53,7 @@ you're past ~10 repos), and the optional `factory-comment.yml` (`/oc` interface)
 # .github/workflows/factory.yml — the entire per-repo footprint
 jobs:
   factory:
-    uses: yourorg/factory/.github/workflows/factory.reusable.yml@v1
+    uses: rlweb/a-factory/.github/workflows/factory.reusable.yml@v1
     secrets:
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     with:
@@ -71,7 +76,7 @@ consumer-template/           what each consuming repo commits
 
 ## The distribution model
 
-Logic ships as a **composite GitHub Action** (`uses: yourorg/factory@v1` — built from
+Logic ships as a **composite GitHub Action** (`uses: rlweb/a-factory@v1` — built from
 this repo on the runner, nothing published to npm); CI ships as a **reusable workflow**
 called by a thin per-repo stub pinned to a version ref; issue forms are **committed per
 repo** from the template; config lives in **GitHub Actions variables** (org baseline,
@@ -79,13 +84,13 @@ repo overrides). One git ref versions the lot.
 
 | Piece | Lives in | Distributed as | Versioned by |
 | --- | --- | --- | --- |
-| Orchestrator logic | `action.yml` + `src/` | composite action (`uses: yourorg/factory@v1`) | git ref |
+| Orchestrator logic | `action.yml` + `src/` | composite action (`uses: rlweb/a-factory@v1`) | git ref |
 | CI workflows | `.github/workflows/factory.reusable.yml` | reusable workflow (`uses:`) | git ref (`@v1`, `@v1.4.2`) |
 | Issue forms | `consumer-template/` | committed per repo | copied at onboarding |
 | Config | Actions variables | org/repo vars | GitHub UI (not versioned) |
 
 Workflows can't live in an action — GitHub only runs workflow YAML from the repo's own
-`.github/`. Hence the action/workflow split; when a job runs `uses: yourorg/factory@<ref>`,
+`.github/`. Hence the action/workflow split; when a job runs `uses: rlweb/a-factory@<ref>`,
 GitHub downloads this repo's tree at that ref and the action builds the package
 in place.
 

@@ -22,7 +22,7 @@ on:
 
 jobs:
   factory:
-    uses: yourorg/factory/.github/workflows/factory.reusable.yml@v1
+    uses: rlweb/a-factory/.github/workflows/factory.reusable.yml@v1
     permissions:
       contents: write
       issues: write

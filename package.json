@@ -1,5 +1,5 @@
 {
-  "name": "@yourorg/factory",
+  "name": "@rlweb/a-factory",
   "version": "1.0.0",
   "private": true,
   "description": "Autonomous issue-to-merge software factory: orchestrators, gates, and CLI.",
