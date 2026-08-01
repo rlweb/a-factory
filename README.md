@@ -76,7 +76,7 @@ consumer-template/           what each consuming repo commits
 
 ## The distribution model
 
-Logic ships as a **composite GitHub Action** (`uses: rlweb/a-factory@v1` — built from
+Logic ships as a **composite GitHub Action** (`uses: rlweb/a-factory@main` — built from
 this repo on the runner, nothing published to npm); CI ships as a **reusable workflow**
 called by a thin per-repo stub pinned to a version ref; issue forms are **committed per
 repo** from the template; config lives in **GitHub Actions variables** (org baseline,
@@ -84,7 +84,7 @@ repo overrides). One git ref versions the lot.
 
 | Piece | Lives in | Distributed as | Versioned by |
 | --- | --- | --- | --- |
-| Orchestrator logic | `action.yml` + `src/` | composite action (`uses: rlweb/a-factory@v1`) | git ref |
+| Orchestrator logic | `action.yml` + `src/` | composite action (`uses: rlweb/a-factory@main`) | git ref |
 | CI workflows | `.github/workflows/factory.reusable.yml` | reusable workflow (`uses:`) | git ref (`@v1`, `@v1.4.2`) |
 | Issue forms | `consumer-template/` | committed per repo | copied at onboarding |
 | Config | Actions variables | org/repo vars | GitHub UI (not versioned) |
