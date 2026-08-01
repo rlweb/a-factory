@@ -1,0 +1,90 @@
+name: Bug report
+description: Something is broken or behaving incorrectly
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The fields below are read by the automation, so please keep them structured — the clearer the repro, the more likely it gets fixed without a human round-trip.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences on what's wrong.
+      placeholder: Clicking "Save" on the settings page throws a 500.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Exact steps to trigger it. Numbered.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include error messages / stack traces in the block below.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: area
+    attributes:
+      label: Affected area / path
+      description: Best guess at the file, module, or route involved. Helps the agent scope.
+      placeholder: src/settings/save.ts
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "low - cosmetic or minor"
+        - "medium - degraded but usable"
+        - "high - broken core flow"
+        - "critical - data loss / outage"
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: autofix
+    attributes:
+      label: Automation intent
+      description: Should the factory attempt an automated fix, or just triage and wait for a human?
+      options:
+        - "triage only - do not implement"
+        - "attempt auto-fix if low risk"
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues for a duplicate
+          required: true
+        - label: This is reproducible on the latest main
+          required: false

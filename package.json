@@ -1,0 +1,35 @@
+{
+  "name": "@yourorg/factory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Autonomous issue-to-merge software factory: orchestrators, gates, and CLI.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "factory": "./dist/bin/factory.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate": "pnpm run lint && pnpm run typecheck && pnpm run test"
+  },
+  "dependencies": {
+    "@actions/github": "^6.0.0",
+    "@opencode-ai/sdk": "^1.18.11",
+    "minimatch": "^10.0.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

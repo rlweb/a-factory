@@ -1,0 +1,38 @@
+# ── Consumer stub: commit this in each repo's .github/workflows/ ──────────────────
+# The only factory workflow file a consuming repo needs. It declares the triggers and
+# forwards event context to the central reusable workflow, pinned to a version.
+#
+# Version pinning:
+#   @v1        → latest within major 1 (repos that should track updates)
+#   @v1.4.2    → frozen (repos that update deliberately)
+# Change the ref below per repo to choose its update behaviour.
+#
+# Per-repo config is set as Actions *variables* (Settings ▸ Secrets and variables ▸
+# Actions ▸ Variables), overriding org-level defaults. The OPENCODE_API_KEY secret
+# is set the same way under Secrets.
+name: factory
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  repository_dispatch:
+    types: [factory-build, factory-epic]
+
+jobs:
+  factory:
+    uses: yourorg/factory/.github/workflows/factory.reusable.yml@v1
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    secrets:
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+    with:
+      event_name: ${{ github.event_name }}
+      action: ${{ github.event.action || '' }}
+      label_name: ${{ github.event.label.name || '' }}
+      issue_number: ${{ github.event.issue.number || github.event.client_payload.issue || '' }}
+      is_pull_request: ${{ github.event.issue.pull_request != null }}

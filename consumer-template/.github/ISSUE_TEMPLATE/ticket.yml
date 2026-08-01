@@ -1,0 +1,67 @@
+name: Ticket / feature
+description: A single scoped unit of work — a feature, change, or task
+title: "ticket: "
+labels: ["ticket", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for one self-contained piece of work. If it's large enough to need breaking down, open an **Epic** instead — the orchestrator will split it into tickets like this one.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be true when this is done? Describe the outcome, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist the change must satisfy. The agent treats each line as a requirement and the validation gate confirms them.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / constraints
+      description: Anything the agent should know — related code, prior decisions, things not to touch.
+    validations:
+      required: false
+
+  - type: input
+    id: area
+    attributes:
+      label: Primary area / path
+      placeholder: src/billing/
+    validations:
+      required: false
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated size
+      options:
+        - "S - a few files"
+        - "M - a module"
+        - "L - consider splitting into an epic"
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: autofix
+    attributes:
+      label: Automation intent
+      options:
+        - "triage only - do not implement"
+        - "attempt implementation if low risk"
+      default: 1
+    validations:
+      required: true

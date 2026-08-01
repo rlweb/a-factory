@@ -1,0 +1,26 @@
+name: validate
+
+# The required status check. Branch protection points at the `validate` job below,
+# so nothing merges — agent-authored or human — unless this passes independently of
+# any agent self-assessment.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run validation
+        run: pnpm run validate

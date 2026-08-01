@@ -1,0 +1,192 @@
+name: factory (reusable)
+
+# Central, versioned factory logic. Consumer repos call this via `uses:` with a
+# version ref (@v1 for latest-in-major, @v1.4.2 to pin). The consumer's own triggers
+# fire it; a called workflow's triggers are ignored, so the consumer stub declares
+# `on:` and this file declares `workflow_call`.
+#
+# Config comes from GitHub Actions **variables** (vars.*), resolved by GitHub with
+# repo-level overriding org-level. Unset vars expand to "" and the package falls back
+# to baked defaults. Secrets are passed through from the caller.
+
+on:
+  workflow_call:
+    inputs:
+      event_name:
+        description: "The caller's github.event_name (routing)."
+        type: string
+        required: true
+      action:
+        description: "The caller's event action or dispatch type."
+        type: string
+        default: ""
+      label_name:
+        description: "For labeled events, the label name."
+        type: string
+        default: ""
+      issue_number:
+        type: string
+        default: ""
+      is_pull_request:
+        description: "True when an issue_comment fired on a PR (to skip issue-only jobs)."
+        type: string
+        default: "false"
+    secrets:
+      OPENCODE_API_KEY:
+        required: true
+
+# Config variables consumed below (set as org and/or repo Actions variables):
+#   FACTORY_VALIDATION_ATTEMPTS, FACTORY_QUESTION_ROUNDS,
+#   FACTORY_GATE_MAX_FILES, FACTORY_PROTECTED_PATHS (comma-separated),
+#   FACTORY_TRUSTED_ASSOCIATIONS (comma-separated), FACTORY_SERVER_TIMEOUT_MS
+# The model is NOT a variable — set it in the consumer repo's opencode.json.
+env:
+  FACTORY_VALIDATION_ATTEMPTS: ${{ vars.FACTORY_VALIDATION_ATTEMPTS }}
+  FACTORY_QUESTION_ROUNDS: ${{ vars.FACTORY_QUESTION_ROUNDS }}
+  FACTORY_GATE_MAX_FILES: ${{ vars.FACTORY_GATE_MAX_FILES }}
+  FACTORY_PROTECTED_PATHS: ${{ vars.FACTORY_PROTECTED_PATHS }}
+  FACTORY_TRUSTED_ASSOCIATIONS: ${{ vars.FACTORY_TRUSTED_ASSOCIATIONS }}
+  FACTORY_SERVER_TIMEOUT_MS: ${{ vars.FACTORY_SERVER_TIMEOUT_MS }}
+
+jobs:
+  triage:
+    if: inputs.event_name == 'issues' && inputs.action == 'opened'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - name: Triage
+        uses: yourorg/factory@v1
+        with: { command: triage }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+
+  epic:
+    if: >
+      (inputs.event_name == 'issues' && inputs.action == 'labeled' && inputs.label_name == 'epic') ||
+      (inputs.event_name == 'repository_dispatch' && inputs.action == 'factory-epic')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - name: Decompose epic
+        uses: yourorg/factory@v1
+        with: { command: epic }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          DECOMPOSE_MODE: propose
+
+  build:
+    if: >
+      (inputs.event_name == 'issues' && inputs.action == 'labeled' && inputs.label_name == 'ready') ||
+      (inputs.event_name == 'repository_dispatch' && inputs.action == 'factory-build')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    outputs:
+      pr_number: ${{ steps.impl.outputs.pr_number }}
+      issue_number: ${{ steps.resolve.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0, persist-credentials: true }
+      - name: Resolve issue
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const num = context.eventName === 'repository_dispatch'
+              ? context.payload.client_payload.issue
+              : context.payload.issue.number;
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: num,
+            });
+            core.setOutput('issue', String(num));
+            core.setOutput('title', issue.title ?? '');
+            core.exportVariable('RESOLVED_ISSUE_BODY', issue.body ?? '');
+      - name: Implement (agent + validation gate)
+        id: impl
+        uses: yourorg/factory@v1
+        with: { command: implement }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ISSUE_NUMBER: ${{ steps.resolve.outputs.issue }}
+          ISSUE_TITLE: ${{ steps.resolve.outputs.title }}
+          ISSUE_BODY: ${{ env.RESOLVED_ISSUE_BODY }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+      # PRs opened with GITHUB_TOKEN don't fire pull_request workflows (no-cascade
+      # rule), so the consumer's validate.yml never reports on factory PRs. The
+      # implement step above only opens a PR after `pnpm validate` passed, so report
+      # that result as the required `validate` status here. Human PRs still get the
+      # check from validate.yml.
+      - name: Report validate status on factory PR
+        if: steps.impl.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner, repo: context.repo.repo,
+              pull_number: Number('${{ steps.impl.outputs.pr_number }}'),
+            });
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner, repo: context.repo.repo,
+              sha: pr.head.sha, state: 'success', context: 'validate',
+              description: 'pnpm validate passed in the factory build job',
+            });
+
+  review:
+    needs: build
+    if: needs.build.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - name: Review + risk gate
+        uses: yourorg/factory@v1
+        with: { command: review }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PR_NUMBER: ${{ needs.build.outputs.pr_number }}
+          ISSUE_NUMBER: ${{ needs.build.outputs.issue_number }}
+          VALIDATION_PASSED: "true"
+
+  resume:
+    if: >
+      (inputs.event_name == 'issue_comment' && inputs.is_pull_request != 'true') ||
+      (inputs.event_name == 'issues' && inputs.action == 'labeled' && inputs.label_name == 'answer-approved')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - name: Decide resume
+        uses: yourorg/factory@v1
+        with: { command: resume }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id || 0 }}
+          COMMENT_BODY: ${{ github.event.comment.body || '' }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association || 'NONE' }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login || '' }}
+          COMMENT_AUTHOR_TYPE: ${{ github.event.comment.user.type || 'User' }}
