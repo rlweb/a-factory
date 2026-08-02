@@ -13,13 +13,15 @@ validates, opens a PR, and merges it if the risk gate passes.
 flowchart TD
     A[Issue opened] -->|issues: opened| T[factory triage]
     T -->|clear enough| R[label: ready]
-    T -->|too vague| H[label: needs-human]
+    T -->|needs clarifying| Q
+    T -->|spam / question| H[label: needs-human]
     E[Issue labeled epic] --> EP[factory epic<br/>decompose into child tickets]
     EP --> R
     R -->|issues: labeled ready| B[factory implement<br/>plan → code → validate]
-    B -->|needs input| Q[label: awaiting-answer<br/>asks question on issue]
+    B -->|needs input| Q[label: awaiting-answer<br/>posts question as botComment]
     Q -->|human replies| RS[factory resume<br/>trust check on commenter]
-    RS -->|trusted or approved| B
+    RS -->|trusted + non-epic| B
+    RS -->|trusted + epic| EP
     B -->|validation passes| PR[opens pull request]
     PR --> RV[factory review<br/>agent risk verdict + deterministic gate]
     RV -->|low risk, no protected paths,<br/>under file limit| M[auto-merge]
@@ -61,6 +63,69 @@ jobs:
       event_name: ${{ github.event_name }}
       # ...event context, see consumer-template/.github/workflows/factory.yml
 ```
+
+## What each entry point does
+
+### Ticket / Bug — the main path
+
+Both forms feed the same pipeline; which one you pick changes how the work is done.
+
+| Form | Labels applied | Implemented by | "Automation intent" default |
+| --- | --- | --- | --- |
+| **Ticket / feature** | `ticket`, `triage` | `builder` — implement end to end | attempt implementation if low risk |
+| **Bug report** | `bug`, `triage` | `bugfixer` — reproduce first, minimal diff, regression test | **triage only** |
+
+Note the differing defaults: a ticket is queued for automated work by default, a bug
+is not. That's deliberate — you usually want eyes on a defect before an agent changes
+behaviour — so flip **Automation intent** to "attempt auto-fix if low risk" on a bug
+you're happy to hand over. Nothing is implemented unless that field says so *and*
+triage judges the request concrete enough.
+
+What happens next: triage classifies the issue and applies labels; if it's actionable
+it adds `ready`, which starts the build. The build plans first (read-only), then
+implements, then runs `pnpm verify` — retrying up to `FACTORY_VALIDATION_ATTEMPTS`
+times, feeding each failure back to the agent. On success it opens a PR and the review
+gate decides auto-merge vs human. On failure it labels `needs-human` and pushes the
+branch for you to inspect.
+
+Write **acceptance criteria** as a real checklist: the agent treats each line as a
+requirement, and the reviewer scores the diff against them as the spec.
+
+If the planner finds something materially ambiguous it stops *before* touching code,
+comments its questions, and labels the issue `awaiting-answer` — see Comments below.
+
+### Epic — decomposed into tickets
+
+Use an Epic when the work is too big for one ticket. The factory reads the objective,
+in/out of scope, your optional suggested breakdown, and any human answers in the
+issue thread, then splits it into child
+tickets that are independently shippable and sized to a single agent session, wiring
+dependency edges only where ordering genuinely matters.
+
+**Today it always runs in "propose" mode**: it posts the proposed breakdown as a
+comment and creates nothing, so you can review the split before committing to it. The
+form offers "auto-create child tickets immediately", but the reusable workflow pins
+`DECOMPOSE_MODE: propose` — honouring that dropdown needs a workflow change. In auto
+mode, children with no dependencies are labelled `ready` and dispatched immediately
+while dependents are labelled `blocked`.
+
+### Comments — answering the agent, and ad-hoc `/oc`
+
+Two separate mechanisms:
+
+**Answering a question** (issue comments only). Both triage (clarifying questions on
+vague issues) and implement (ambiguous plans) can post `awaiting-answer` questions. A
+reply resumes the work. Who can resume is governed by
+`FACTORY_TRUSTED_ASSOCIATIONS`: an OWNER, MEMBER, or COLLABORATOR resumes immediately;
+anyone else has their answer accepted but held until a maintainer 👍s the comment or
+adds the `answer-approved` label. The factory ignores its own comments (marked with
+an HTML comment sentinel), so its questions never re-trigger it. This path does not
+apply to PR comments.
+
+**`/oc` or `/opencode`** in any issue or pull request comment runs an ad-hoc agent via
+the optional `factory-comment.yml` (the official OpenCode action, not the factory
+orchestrators). There's no triage, no risk gate, and no verify loop — it's the "just do
+this one thing" escape hatch, handy for acting on review feedback on a factory PR.
 
 ## What's here
 

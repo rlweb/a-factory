@@ -1,6 +1,7 @@
-import { LABELS } from "./lib/config.js";
+import { BOT_MARKER, LABELS } from "./lib/config.js";
 import {
   addLabels,
+  botComment,
   comment,
   dispatchBuild,
   dispatchEpic,
@@ -75,7 +76,7 @@ ${issueBody}`,
     log(`triage: dispatching build for #${issueNumber}`);
     await dispatchBuild(issueNumber);
   }
-  if (verdict.kind === "epic") {
+  if (verdict.kind === "epic" && verdict.shouldImplement) {
     log(`triage: dispatching epic decomposition for #${issueNumber}`);
     await dispatchEpic(issueNumber);
   }
@@ -87,6 +88,7 @@ ${issueBody}`,
           .map((q) => `- ${q}`)
           .join("\n")}`
       : `Triaged as **${verdict.kind}**, not queued for automated work.\n\n${verdict.reasoning}`;
-    await comment(issueNumber, body);
+    await botComment(issueNumber, body, BOT_MARKER);
+    await addLabels(issueNumber, [LABELS.awaitingAnswer]);
   }
 }

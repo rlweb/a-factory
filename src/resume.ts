@@ -5,6 +5,7 @@ import {
   botComment,
   commentHasMaintainerThumbsUp,
   dispatchBuild,
+  dispatchEpic,
   hasLabel,
   octokit,
   owner,
@@ -100,6 +101,11 @@ export async function run() {
 async function resume(issueNumber: number) {
   await removeLabel(issueNumber, LABELS.awaitingAnswer);
   await addLabels(issueNumber, [LABELS.ready]);
-  log(`resume: dispatching build for #${issueNumber}`);
-  await dispatchBuild(issueNumber); // token label won't fire build; dispatch explicitly
+  if (await hasLabel(issueNumber, LABELS.epic)) {
+    log(`resume: dispatching epic decomposition for #${issueNumber}`);
+    await dispatchEpic(issueNumber);
+  } else {
+    log(`resume: dispatching build for #${issueNumber}`);
+    await dispatchBuild(issueNumber);
+  }
 }

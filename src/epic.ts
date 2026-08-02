@@ -1,10 +1,11 @@
-import { LABELS } from "./lib/config.js";
+import { BOT_MARKER, LABELS } from "./lib/config.js";
 import {
   addLabels,
   comment,
   createChildIssue,
   dispatchBuild,
   getIssue,
+  issueComments,
   removeLabel,
 } from "./lib/github.js";
 import { log } from "./lib/log.js";
@@ -35,6 +36,13 @@ export async function run() {
     : await getIssue(epicNumber);
 
   log(`epic: start for #${epicNumber} "${epicTitle}" (mode ${mode})`);
+
+  const thread = await issueComments(epicNumber, BOT_MARKER);
+  const humanAnswers = thread
+    .filter((c) => !c.isBot)
+    .map((c) => `@${c.login} (${c.association}): ${c.body}`)
+    .join("\n\n");
+
   const plan = await withOpencode(async ({ client }) => {
     const session = await client.session.create({ body: { title: `epic #${epicNumber}` } });
     const sid = session.data!.id;
@@ -45,7 +53,8 @@ export async function run() {
 as 0-based indices into your own subtasks array.
 
 --- EPIC #${epicNumber}: ${epicTitle} ---
-${epicBody}`,
+${epicBody}
+${humanAnswers ? `\n--- ANSWERS & DISCUSSION ---\n${humanAnswers}` : ""}`,
       decompositionSchema,
       "decomposer",
     );
