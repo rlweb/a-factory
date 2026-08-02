@@ -5,7 +5,6 @@ import {
   botComment,
   commentHasMaintainerThumbsUp,
   dispatchBuild,
-  dispatchEpic,
   hasLabel,
   octokit,
   owner,
@@ -13,7 +12,7 @@ import {
   repo,
 } from "./lib/github.js";
 import { log } from "./lib/log.js";
-import { decideResume, isApproval } from "./lib/trust.js";
+import { decideResume } from "./lib/trust.js";
 
 /**
  * Runs on issue_comment for issues labelled `awaiting-answer`.
@@ -24,9 +23,6 @@ import { decideResume, isApproval } from "./lib/trust.js";
  *     resume only once that 👍 is present (a maintainer can also just react to
  *     the original answer, which the reaction-triggered path re-checks)
  * Emits `resume=true|false` to GITHUB_OUTPUT so the workflow gates the build job.
- *
- * On an epic the comment carries a second decision: `approve` creates the proposed child
- * tickets, anything else re-proposes with the comment as feedback. See resume() below.
  */
 
 function setOutput(k: string, v: string) {
@@ -73,7 +69,7 @@ export async function run() {
 
   if (action === "resume") {
     if (maintainerApproved) await removeLabel(issueNumber, LABELS.answerApproved);
-    await resume(issueNumber, isApproval(commentBody));
+    await resume(issueNumber);
     setOutput("resume", "true");
     return;
   }
@@ -101,25 +97,9 @@ export async function run() {
   setOutput("resume", "false");
 }
 
-/**
- * Route an accepted answer. Epics and tickets diverge sharply:
- *
- * An epic is never itself buildable, so it must not get `ready` — that label on an epic
- * is a live hazard, since anything that later re-fires the ready path hands the whole
- * epic to the builder as one ticket. Instead the comment decides the decomposition mode:
- * an explicit approval creates the child tickets from the proposed plan; anything else
- * is treated as revision feedback and re-proposes (epic.ts re-applies awaiting-answer,
- * so the review loop continues until approved).
- */
-async function resume(issueNumber: number, approved: boolean) {
+async function resume(issueNumber: number) {
   await removeLabel(issueNumber, LABELS.awaitingAnswer);
-  if (await hasLabel(issueNumber, LABELS.epic)) {
-    const mode = approved ? "auto" : "propose";
-    log(`resume: dispatching epic decomposition for #${issueNumber} (mode ${mode})`);
-    await dispatchEpic(issueNumber, mode);
-  } else {
-    log(`resume: dispatching build for #${issueNumber}`);
-    await addLabels(issueNumber, [LABELS.ready]);
-    await dispatchBuild(issueNumber);
-  }
+  log(`resume: dispatching build for #${issueNumber}`);
+  await addLabels(issueNumber, [LABELS.ready]);
+  await dispatchBuild(issueNumber);
 }

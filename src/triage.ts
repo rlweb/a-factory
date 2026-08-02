@@ -4,7 +4,6 @@ import {
   botComment,
   comment,
   dispatchBuild,
-  dispatchEpic,
   getIssue,
   removeLabel,
 } from "./lib/github.js";
@@ -13,7 +12,7 @@ import { promptJSON, withOpencode } from "./lib/opencode.js";
 import { triageSchema } from "./lib/schemas.js";
 
 interface Triage {
-  kind: "bug" | "ticket" | "epic" | "question" | "spam";
+  kind: "bug" | "ticket" | "question" | "spam";
   shouldImplement: boolean;
   labels: string[];
   duplicateOf: number | null;
@@ -54,9 +53,8 @@ ${issueBody}`,
 
   // Apply labels; always clear the raw triage label.
   const labels = [...new Set(verdict.labels)].filter((l) => l !== LABELS.triage);
-  const willBuild = verdict.shouldImplement && verdict.kind !== "epic" && !verdict.duplicateOf;
+  const willBuild = verdict.shouldImplement && !verdict.duplicateOf;
   if (willBuild) labels.push(LABELS.ready);
-  if (verdict.kind === "epic") labels.push(LABELS.epic);
   await addLabels(issueNumber, labels);
   await removeLabel(issueNumber, LABELS.triage);
   log(`triage: labels applied [${labels.join(", ")}]`);
@@ -70,15 +68,10 @@ ${issueBody}`,
   }
 
   // The `ready` label was applied via token and won't fire the build workflow on its
-  // own — dispatch it explicitly. (The epic label is handled by the labeled trigger's
-  // epic job, which is a different workflow path; epics dispatch after decomposition.)
+  // own — dispatch it explicitly.
   if (willBuild) {
     log(`triage: dispatching build for #${issueNumber}`);
     await dispatchBuild(issueNumber);
-  }
-  if (verdict.kind === "epic" && verdict.shouldImplement) {
-    log(`triage: dispatching epic decomposition for #${issueNumber}`);
-    await dispatchEpic(issueNumber);
   }
 
   if (!verdict.shouldImplement) {

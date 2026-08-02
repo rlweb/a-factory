@@ -18,7 +18,7 @@ on:
   issue_comment:
     types: [created]
   repository_dispatch:
-    types: [factory-build, factory-epic]
+    types: [factory-build]
 
 jobs:
   factory:

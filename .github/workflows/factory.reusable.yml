@@ -39,7 +39,6 @@ on:
 #   FACTORY_VALIDATION_ATTEMPTS, FACTORY_QUESTION_ROUNDS,
 #   FACTORY_GATE_MAX_FILES, FACTORY_PROTECTED_PATHS (comma-separated),
 #   FACTORY_TRUSTED_ASSOCIATIONS (comma-separated), FACTORY_SERVER_TIMEOUT_MS,
-#   FACTORY_DECOMPOSE_MODE (propose | auto)
 # The model is NOT a variable — set it in the consumer repo's opencode.json.
 # Repo setup (deps/caches) is NOT a variable either — commit an optional local
 # action at .github/actions/factory-setup; the build job runs it when present.
@@ -50,15 +49,13 @@ env:
   FACTORY_PROTECTED_PATHS: ${{ vars.FACTORY_PROTECTED_PATHS }}
   FACTORY_TRUSTED_ASSOCIATIONS: ${{ vars.FACTORY_TRUSTED_ASSOCIATIONS }}
   FACTORY_SERVER_TIMEOUT_MS: ${{ vars.FACTORY_SERVER_TIMEOUT_MS }}
-  # Repo-wide default only; an epic's own "Decomposition intent" field overrides it.
-  FACTORY_DECOMPOSE_MODE: ${{ vars.FACTORY_DECOMPOSE_MODE }}
 
 jobs:
   triage:
     if: inputs.event_name == 'issues' && inputs.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # repository_dispatch (build/epic kickoff) requires contents:write
+      contents: write # repository_dispatch (build kickoff) requires contents:write
       issues: write
     steps:
       - uses: actions/checkout@v6
@@ -70,31 +67,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
-
-  epic:
-    if: >
-      (inputs.event_name == 'issues' && inputs.action == 'labeled' && inputs.label_name == 'epic') ||
-      (inputs.event_name == 'repository_dispatch' && inputs.action == 'factory-epic')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # dispatches factory-build for ready child tickets
-      issues: write
-    steps:
-      - uses: actions/checkout@v6
-        with: { persist-credentials: false }
-      - name: Decompose epic
-        uses: rlweb/a-factory@main
-        with: { command: epic }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
-          # Per-dispatch override, set when a human approved a proposed breakdown. Read
-          # straight off the event rather than via an input: the github context in a
-          # reusable workflow is the caller's event, so this needs no consumer stub change
-          # (and every consumer has its own committed copy of that stub). Empty on the
-          # `labeled` path, where the epic body's dropdown decides.
-          DECOMPOSE_MODE: ${{ github.event.client_payload.mode }}
 
   build:
     if: >

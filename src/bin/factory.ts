@@ -5,7 +5,6 @@
  *   factory triage      (issues: opened)
  *   factory implement   (build: plan → implement → validate gate)
  *   factory review      (risk gate on a PR)
- *   factory epic        (decompose an epic into child tickets)
  *   factory resume      (decide whether a human answer resumes the agent)
  *
  * All input comes from environment variables set by the workflow (ISSUE_NUMBER,
@@ -16,7 +15,6 @@ const commands = {
   triage: () => import("../triage.js"),
   implement: () => import("../implement.js"),
   review: () => import("../review.js"),
-  epic: () => import("../epic.js"),
   resume: () => import("../resume.js"),
 } as const;
 

@@ -7,7 +7,7 @@
 export const triageSchema = {
   type: "object",
   properties: {
-    kind: { type: "string", enum: ["bug", "ticket", "epic", "question", "spam"] },
+    kind: { type: "string", enum: ["bug", "ticket", "question", "spam"] },
     shouldImplement: {
       type: "boolean",
       description: "True only if this is actionable now and the reporter allowed auto-work.",
@@ -74,29 +74,4 @@ export const riskSchema = {
     concerns: { type: "array", items: { type: "string" } },
   },
   required: ["risk", "autoMerge", "touchesAuth", "touchesMigrations", "touchesInfra", "summary"],
-} as const;
-
-export const decompositionSchema = {
-  type: "object",
-  properties: {
-    subtasks: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          body: { type: "string", description: "Full ticket body incl. acceptance criteria." },
-          size: { type: "string", enum: ["S", "M", "L"] },
-          dependsOn: {
-            type: "array",
-            items: { type: "number" },
-            description: "Indices (0-based) of other subtasks in this array that must merge first.",
-          },
-        },
-        required: ["title", "body", "size", "dependsOn"],
-      },
-    },
-    reasoning: { type: "string" },
-  },
-  required: ["subtasks", "reasoning"],
 } as const;

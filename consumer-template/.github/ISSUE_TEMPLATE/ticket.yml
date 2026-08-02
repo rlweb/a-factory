@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this for one self-contained piece of work. If it's large enough to need breaking down, open an **Epic** instead — the orchestrator will split it into tickets like this one.
+        Use this for one self-contained piece of work.
 
   - type: textarea
     id: goal
@@ -50,7 +50,6 @@ body:
       options:
         - "S - a few files"
         - "M - a module"
-        - "L - consider splitting into an epic"
       default: 0
     validations:
       required: true

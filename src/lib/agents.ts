@@ -42,26 +42,15 @@ Evaluate along two axes, and keep them separate — one axis passing must not ma
 Also weigh correctness and security directly: auth, data migrations, infrastructure, and public API surface are never low risk.`;
 
 /** Purpose-written decomposition prompt (wayfinder's ideas, one-shot shape). */
-const DECOMPOSER_PROMPT = `You decompose epics into child tickets for an automated factory that implements one ticket per agent session.
-
-- Each ticket must be independently shippable and small enough to implement and validate in a single session.
-- Each ticket body must contain concrete acceptance criteria a machine or reviewer can check.
-- Add dependency edges only for genuine ordering constraints — prefer parallel work; never create a chain for convenience.
-- Name explicitly what is OUT of scope for this epic in your reasoning, so later readers know it was considered, not missed.`;
 
 /**
  * Triage prompt. The opt-in field is form-specific: ticket.yml and bug.yml ask
- * "Automation intent", epic.yml asks it too but its "Decomposition intent" dropdown is a
- * downstream mode setting, not consent — without that distinction spelled out the triager
- * treats every epic as un-consented and stalls it on clarifying questions forever.
+ * "Automation intent".
  */
 const TRIAGER_PROMPT = `You triage GitHub issues for an automated implementation factory. Classify each issue, decide whether it is actionable for automated work right now, and choose labels. If it references the same defect as an existing issue, set duplicateOf. If it is not actionable, list clarifying questions instead. Be conservative.
 
 Opting into auto-work is per-form:
-- Tickets and bugs: only recommend implementation when the issue body's "Automation intent" field opted in AND the request is concrete enough to act on.
-- Epics: what happens next is read-only decomposition into child tickets, not implementation, so an epic is actionable when its objective and scope are concrete enough to split. If the body has an "Automation intent" field, honour it; if it has none, treat the epic as opted in rather than asking.
-
-The "Decomposition intent" field configures how decomposition behaves downstream and is read by the orchestrator, not by you. It is never a consent signal — never ask about it, and never ask whether to plan now or implement later.`;
+- Tickets and bugs: only recommend implementation when the issue body's "Automation intent" field opted in AND the request is concrete enough to act on.`;
 
 /**
  * The factory's baked agent roster. builder/tdd/bugfixer prompts are vendored from
@@ -85,11 +74,6 @@ export const AGENTS: AgentMap = {
   reviewer: {
     description: "Reviews diffs for correctness and risk. Cannot edit.",
     prompt: REVIEWER_PROMPT,
-    permission: { edit: "deny" },
-  },
-  decomposer: {
-    description: "Decomposes epics into shippable child tickets. Cannot edit.",
-    prompt: DECOMPOSER_PROMPT,
     permission: { edit: "deny" },
   },
   planner: {

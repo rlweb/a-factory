@@ -13,7 +13,7 @@ describe("loadSkillPrompt", () => {
 
 describe("AGENTS", () => {
   it("keeps read-only phases read-only", () => {
-    for (const name of ["reviewer", "decomposer", "planner", "triager"]) {
+    for (const name of ["reviewer", "planner", "triager"]) {
       expect(AGENTS[name]?.permission?.edit).toBe("deny");
     }
   });
@@ -37,28 +37,9 @@ describe("AGENTS", () => {
     expect(p).not.toMatch(/fixed point|sub-agent|setup-matt-pocock/i);
   });
 
-  it("gives the decomposer the one-shot decomposition rules", () => {
-    const p = AGENTS.decomposer?.prompt ?? "";
-    expect(p).toContain("acceptance criteria");
-    expect(p).toContain("independently shippable");
-    expect(p).not.toMatch(/wayfinder:map|decision ticket/i);
-  });
-
-  // Regression: the triager used to demand an "Automation intent" field on every issue,
-  // which epic.yml lacked, so every epic stalled on clarifying questions and never
-  // dispatched. It also read the "Decomposition intent" dropdown as a consent signal.
-  it("scopes the triager's consent rule per form and exempts epics", () => {
+  it("scopes the triager's consent rule per form", () => {
     const p = AGENTS.triager?.prompt ?? "";
     expect(p).toContain("Automation intent");
-    expect(p).toMatch(/epics?.*read-only/i);
-    expect(p).toContain("treat the epic as opted in rather than asking");
-  });
-
-  it("tells the triager the decomposition dropdown is never a consent signal", () => {
-    const p = AGENTS.triager?.prompt ?? "";
-    expect(p).toContain("Decomposition intent");
-    expect(p).toContain("never a consent signal");
-    expect(p).toMatch(/never ask whether to plan now or implement later/i);
   });
 });
 

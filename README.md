@@ -15,13 +15,10 @@ flowchart TD
     T -->|clear enough| R[label: ready]
     T -->|needs clarifying| Q
     T -->|spam / question| H[label: needs-human]
-    E[Issue labeled epic] --> EP[factory epic<br/>decompose into child tickets]
-    EP --> R
     R -->|issues: labeled ready| B[factory implement<br/>plan → code → validate]
     B -->|needs input| Q[label: awaiting-answer<br/>posts question as botComment]
     Q -->|human replies| RS[factory resume<br/>trust check on commenter]
-    RS -->|trusted + non-epic| B
-    RS -->|trusted + epic| EP
+    RS -->|trusted| B
     B -->|validation passes| PR[opens pull request]
     PR --> RV[factory review<br/>agent risk verdict + deterministic gate]
     RV -->|low risk, no protected paths,<br/>under file limit| M[auto-merge]
@@ -74,7 +71,6 @@ Both forms feed the same pipeline; which one you pick changes how the work is do
 | --- | --- | --- | --- |
 | **Ticket / feature** | `ticket`, `triage` | `builder` — implement end to end | attempt implementation if low risk |
 | **Bug report** | `bug`, `triage` | `bugfixer` — reproduce first, minimal diff, regression test | **triage only** |
-| **Epic** | `epic`, `triage` | `decomposer` — split into child tickets, no code | decompose automatically |
 
 Note the differing defaults: a ticket is queued for automated work by default, a bug
 is not. That's deliberate — you usually want eyes on a defect before an agent changes
@@ -95,57 +91,13 @@ requirement, and the reviewer scores the diff against them as the spec.
 If the planner finds something materially ambiguous it stops *before* touching code,
 comments its questions, and labels the issue `awaiting-answer` — see Comments below.
 
-### Epic — decomposed into tickets
-
-Use an Epic when the work is too big for one ticket. The factory reads the objective,
-in/out of scope, your optional suggested breakdown, and any human answers in the
-issue thread, then splits it into child
-tickets that are independently shippable and sized to a single agent session, wiring
-dependency edges only where ordering genuinely matters.
-
-The epic form has two settings, and they do different jobs. **Automation intent** decides
-whether decomposition runs at all — flip it to "triage only" to hold the epic for a human.
-Decomposition itself writes no code, so unlike a ticket or bug it defaults to on.
-**Decomposition intent** decides what decomposition does with its result:
-
-| Mode | Behaviour |
-| --- | --- |
-| `propose` (default) | Posts the breakdown as a comment, labels the epic `awaiting-answer`, and creates nothing until you approve. |
-| `auto` | Creates each child ticket immediately. Children with no dependencies are labelled `ready` and dispatched; dependents are labelled `blocked`. |
-
-**Approving a proposed breakdown.** Reply on the epic with `approve` (or `approved`,
-`lgtm`, `go ahead`, `ship it`, `/approve`) as the **first line** of your comment, and the
-child tickets are created. Reply with anything else and it's treated as revision feedback:
-the epic re-decomposes with your comment in context and proposes again, looping until you
-approve.
-
-Approval is anchored to the start of the comment on purpose — a substring match would read
-"I don't approve of splitting T2 that way" as consent. A negation on that line vetoes it,
-and quoted (`>`) lines are skipped so replying above a quoted proposal works.
-
-The approved plan is embedded in the breakdown comment as a hidden base64 block, and
-approval replays it **verbatim with no model call**. That matters: prompting the decomposer
-twice does not give the same answer twice (one epic went 4 subtasks, then 3), so without
-this the tickets you got wouldn't be the ones you approved. If a plan is too large to fit
-in a comment the factory says so, and approving re-plans from scratch instead.
-
-Precedence for the mode is most-specific-first: an `approve` comment beats the epic's
-**Decomposition intent** dropdown (you chose that before seeing the breakdown), which beats
-the repo-wide `FACTORY_DECOMPOSE_MODE` variable, which beats the baked default of `propose`.
-An unrecognised value at any level falls through to `propose` rather than guessing — `auto`
-is the branch that opens issues and dispatches builds unattended.
-
-Note that nothing yet promotes a `blocked` child when its prerequisites merge; add `ready`
-yourself and the build starts.
-
 ### Comments — answering the agent, and ad-hoc `/oc`
 
 Two separate mechanisms:
 
 **Answering a question** (issue comments only). Triage (clarifying questions on vague
-issues), implement (ambiguous plans), and epic decomposition (a breakdown awaiting
-approval) all post `awaiting-answer` questions. A reply resumes the work — for an epic,
-into either ticket creation or another proposal round, per Epic above. Who can resume is
+issues) and implement (ambiguous plans) both post `awaiting-answer` questions. A reply
+resumes the work. Who can resume is
 governed by
 `FACTORY_TRUSTED_ASSOCIATIONS`: an OWNER, MEMBER, or COLLABORATOR resumes immediately;
 anyone else has their answer accepted but held until a maintainer 👍s the comment or
@@ -198,7 +150,7 @@ Each phase runs a purpose-built OpenCode agent. `builder` (implement), `bugfixer
 delegates to use prompts vendored verbatim from
 [mattpocock/skills](https://github.com/mattpocock/skills) (MIT, see `agents/LICENSE`),
 behind a shared harness preamble that adapts them to unattended CI (no human to ask,
-no self-committing, dangling skill references skipped). `reviewer` and `decomposer`
+no self-committing, dangling skill references skipped). `reviewer` and `planner`
 use factory-written prompts distilled from those skills' ideas (the two-axis review +
 smell baseline; one-shot shippable decomposition). `planner`, `triager`, `reviewer`,
 and `decomposer` are read-only by permission (`edit: deny`), not just by prompt.
@@ -217,7 +169,7 @@ highly recommended**; without one the factory falls back to a baked default
 ```
 
 The same file can override any factory agent — define an agent with the same name
-(`builder`, `bugfixer`, `reviewer`, `decomposer`, `planner`, `triager`, `tdd`) and the
+(`builder`, `bugfixer`, `reviewer`, `planner`, `triager`, `tdd`) and the
 factory's baked definition is dropped entirely in favour of yours. That's a wholesale
 replacement (prompt, model, permissions), so restate whatever you want to keep. For
 example, a cheaper model for triage and a house-style builder:
@@ -259,7 +211,6 @@ would otherwise silently zero a limit).
 | `FACTORY_PROTECTED_PATHS` | comma-separated | `.github/**,infra/**,**/migrations/**,**/*.tf,src/auth/**,package.json,pnpm-lock.yaml,package-lock.json` | Globs that force human review |
 | `FACTORY_TRUSTED_ASSOCIATIONS` | comma-separated | `OWNER,MEMBER,COLLABORATOR` | author_association levels that resume immediately |
 | `FACTORY_SERVER_TIMEOUT_MS` | number | `15000` | OpenCode server boot timeout |
-| `FACTORY_DECOMPOSE_MODE` | `propose` \| `auto` | `propose` | Repo-wide epic decomposition default. An epic's "Decomposition intent" field wins over it, and an `approve` comment wins over both |
 
 Encoding notes:
 

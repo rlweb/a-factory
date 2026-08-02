@@ -64,26 +64,6 @@ describe("dispatch helpers", () => {
       }),
     );
   });
-
-  it("dispatchEpic fires event_type factory-epic", async () => {
-    await gh.dispatchEpic(9);
-    expect(rest.repos.createDispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ event_type: "factory-epic", client_payload: { issue: 9 } }),
-    );
-  });
-
-  it("dispatchEpic carries an explicit mode so an approval can force auto", async () => {
-    await gh.dispatchEpic(9, "auto");
-    expect(rest.repos.createDispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ client_payload: { issue: 9, mode: "auto" } }),
-    );
-  });
-
-  it("dispatchEpic omits mode entirely when unset, so the dropdown still decides", async () => {
-    await gh.dispatchEpic(9);
-    const payload = rest.repos.createDispatchEvent.mock.calls[0][0];
-    expect("mode" in payload.client_payload).toBe(false);
-  });
 });
 
 describe("issueLabels", () => {
