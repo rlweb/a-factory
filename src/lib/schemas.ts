@@ -56,7 +56,7 @@ export const planSchema = {
     },
     reasoning: { type: "string" },
   },
-  required: ["status", "questions", "assumptions", "reasoning"],
+  required: ["status", "questions", "assumptions", "plan", "reasoning"],
 } as const;
 
 export const riskSchema = {

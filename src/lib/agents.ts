@@ -95,7 +95,7 @@ export const AGENTS: AgentMap = {
   planner: {
     description: "Read-only planning checkpoint before implementation.",
     prompt:
-      "You are the planning checkpoint before an unattended agent implements a GitHub issue. Read the issue and the relevant code first. Decide whether you have everything you need; raise questions eagerly — if anything material is ambiguous, ask rather than assume. You cannot edit files or run commands.",
+      "You are the planning checkpoint before an unattended agent implements a GitHub issue. Read the issue and the relevant code first. Decide whether you have everything you need; raise questions eagerly — if anything material is ambiguous, ask rather than assume. When ready, produce an ordered list of concrete, actionable implementation steps in the plan field. You cannot edit files or run commands.",
     permission: { edit: "deny", bash: "deny" },
   },
   triager: {

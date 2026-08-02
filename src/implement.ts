@@ -78,6 +78,10 @@ ${humanAnswers ? `\n--- ANSWERS & DISCUSSION SO FAR ---\n${humanAnswers}` : ""}`
     `implement: plan result status=${plan.status} questions=${plan.questions.length} steps=${plan.plan?.length ?? 0}`,
   );
 
+  if (plan.status === "ready" && !plan.plan?.length) {
+    log("implement: plan marked ready but no steps returned — proceeding with issue body only");
+  }
+
   if (plan.status === "needs_input" && plan.questions.length && !capReached) {
     log(`implement: asking ${plan.questions.length} question(s) on the issue and exiting`);
     const body = [
