@@ -24,12 +24,27 @@ export {
   TRUSTED_ASSOCIATIONS,
   VALIDATION_MAX_ATTEMPTS,
 } from "./lib/config.js";
-export { type DecomposeMode, parseDecomposeMode } from "./lib/decompose.js";
+export {
+  type DecomposeMode,
+  type DecomposeModeSources,
+  parseDecomposeMode,
+} from "./lib/decompose.js";
 export { type GateConfig, type GateDecision, gate, type Risk } from "./lib/gate.js";
+export {
+  type Decomposition,
+  decodePlanBlock,
+  encodePlanBlock,
+  MAX_COMMENT_CHARS,
+  PLAN_BLOCK_VERSION,
+  type Subtask,
+  unavailablePlanBlock,
+  withPlanBlock,
+} from "./lib/plan-block.js";
 export { decompositionSchema, planSchema, riskSchema, triageSchema } from "./lib/schemas.js";
 export {
   type AnswerContext,
   decideResume,
+  isApproval,
   questionCapReached,
   type ResumeAction,
 } from "./lib/trust.js";

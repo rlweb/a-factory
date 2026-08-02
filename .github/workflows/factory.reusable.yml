@@ -89,6 +89,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
+          # Per-dispatch override, set when a human approved a proposed breakdown. Read
+          # straight off the event rather than via an input: the github context in a
+          # reusable workflow is the caller's event, so this needs no consumer stub change
+          # (and every consumer has its own committed copy of that stub). Empty on the
+          # `labeled` path, where the epic body's dropdown decides.
+          DECOMPOSE_MODE: ${{ github.event.client_payload.mode }}
 
   build:
     if: >

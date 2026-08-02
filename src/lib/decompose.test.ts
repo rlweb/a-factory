@@ -17,39 +17,36 @@ const body = (decomposeValue: string | null) =>
     decomposeValue ?? "",
   ].join("\n");
 
+const AUTO = "auto-create child tickets immediately";
+const PROPOSE = "propose child tickets, wait for human approval";
+
 describe("parseDecomposeMode", () => {
   it("reads auto from the epic's dropdown", () => {
-    expect(parseDecomposeMode(body("auto-create child tickets immediately"), "propose")).toBe(
-      "auto",
-    );
+    expect(parseDecomposeMode(body(AUTO), { repoDefault: "propose" })).toBe("auto");
   });
 
   it("reads propose from the epic's dropdown", () => {
-    expect(parseDecomposeMode(body("propose child tickets, wait for human approval"), "auto")).toBe(
-      "propose",
-    );
+    expect(parseDecomposeMode(body(PROPOSE), { repoDefault: "auto" })).toBe("propose");
   });
 
   it("lets the epic's dropdown override the repo-wide default in both directions", () => {
-    expect(parseDecomposeMode(body("auto-create child tickets immediately"), "propose")).toBe(
-      "auto",
-    );
-    expect(parseDecomposeMode(body("propose child tickets, wait for human approval"), "auto")).toBe(
+    expect(parseDecomposeMode(body(AUTO), { repoDefault: "propose" })).toBe("auto");
+    expect(parseDecomposeMode(body(PROPOSE), { repoDefault: "auto" })).toBe("propose");
+  });
+
+  it("falls back to the repo-wide default when the field is absent", () => {
+    expect(parseDecomposeMode("### Objective\n\nShip it", { repoDefault: "auto" })).toBe("auto");
+    expect(parseDecomposeMode("### Objective\n\nShip it", { repoDefault: "propose" })).toBe(
       "propose",
     );
   });
 
-  it("falls back to the repo-wide default when the field is absent", () => {
-    expect(parseDecomposeMode("### Objective\n\nShip the thing", "auto")).toBe("auto");
-    expect(parseDecomposeMode("### Objective\n\nShip the thing", "propose")).toBe("propose");
-  });
-
   it("falls back when the field is present but blank", () => {
-    expect(parseDecomposeMode(body(null), "auto")).toBe("auto");
+    expect(parseDecomposeMode(body(null), { repoDefault: "auto" })).toBe("auto");
   });
 
   it("falls back when the reporter left the dropdown unanswered", () => {
-    expect(parseDecomposeMode(body("_No response_"), "auto")).toBe("auto");
+    expect(parseDecomposeMode(body("_No response_"), { repoDefault: "auto" })).toBe("auto");
   });
 
   it("does not swallow the following section's heading as the value", () => {
@@ -62,22 +59,26 @@ describe("parseDecomposeMode", () => {
       "",
       "decompose this epic automatically",
     ].join("\n");
-    expect(parseDecomposeMode(reordered, "propose")).toBe("propose");
+    expect(parseDecomposeMode(reordered, { repoDefault: "propose" })).toBe("propose");
   });
 
-  it("defaults to propose when neither the field nor the default is recognisable", () => {
-    expect(parseDecomposeMode(body("something else entirely"), "")).toBe("propose");
-    expect(parseDecomposeMode("", "garbage")).toBe("propose");
+  it("defaults to propose when nothing is recognisable", () => {
+    expect(parseDecomposeMode(body("something else entirely"), { repoDefault: "" })).toBe(
+      "propose",
+    );
+    expect(parseDecomposeMode("", { repoDefault: "garbage" })).toBe("propose");
   });
 
   it("accepts a bare repo-wide default of auto", () => {
-    expect(parseDecomposeMode("", "auto")).toBe("auto");
-    expect(parseDecomposeMode("", "AUTO")).toBe("auto");
+    expect(parseDecomposeMode("", { repoDefault: "auto" })).toBe("auto");
+    expect(parseDecomposeMode("", { repoDefault: "AUTO" })).toBe("auto");
   });
 
   it("tolerates CRLF bodies and label casing", () => {
     expect(
-      parseDecomposeMode("### decomposition intent\r\n\r\nauto-create child tickets", "propose"),
+      parseDecomposeMode("### decomposition intent\r\n\r\nauto-create child tickets", {
+        repoDefault: "propose",
+      }),
     ).toBe("auto");
   });
 
@@ -89,8 +90,38 @@ describe("parseDecomposeMode", () => {
       "",
       "### Decomposition intent",
       "",
-      "propose child tickets, wait for human approval",
+      PROPOSE,
     ].join("\n");
-    expect(parseDecomposeMode(prose, "auto")).toBe("propose");
+    expect(parseDecomposeMode(prose, { repoDefault: "auto" })).toBe("propose");
+  });
+
+  describe("dispatched mode (an approve comment)", () => {
+    it("outranks a contradicting dropdown", () => {
+      // The whole point: the reporter picked "propose" before seeing the breakdown, then
+      // approved it. The approval has to win or approving does nothing.
+      expect(parseDecomposeMode(body(PROPOSE), { dispatched: "auto" })).toBe("auto");
+    });
+
+    it("outranks a contradicting dropdown in the other direction too", () => {
+      expect(parseDecomposeMode(body(AUTO), { dispatched: "propose" })).toBe("propose");
+    });
+
+    it("outranks the repo-wide default", () => {
+      expect(parseDecomposeMode("", { dispatched: "auto", repoDefault: "propose" })).toBe("auto");
+    });
+
+    it("is ignored when empty, as on the labeled path", () => {
+      // GitHub expands a missing client_payload field to "".
+      expect(parseDecomposeMode(body(AUTO), { dispatched: "", repoDefault: "propose" })).toBe(
+        "auto",
+      );
+      expect(parseDecomposeMode(body(PROPOSE), { dispatched: "", repoDefault: "auto" })).toBe(
+        "propose",
+      );
+    });
+
+    it("is ignored when unrecognisable, deferring to the dropdown", () => {
+      expect(parseDecomposeMode(body(AUTO), { dispatched: "nonsense" })).toBe("auto");
+    });
   });
 });

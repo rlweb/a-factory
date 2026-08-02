@@ -108,13 +108,17 @@ export async function dispatchBuild(issueNumber: number) {
   });
 }
 
-/** Same mechanism, for kicking epic decomposition when the epic label was applied by token. */
-export async function dispatchEpic(issueNumber: number) {
+/**
+ * Same mechanism, for kicking epic decomposition when the epic label was applied by token.
+ * `mode` rides along so an "approve" comment can force auto-creation for this run only,
+ * without editing the epic body or the repo's FACTORY_DECOMPOSE_MODE variable.
+ */
+export async function dispatchEpic(issueNumber: number, mode?: "propose" | "auto") {
   await octokit.rest.repos.createDispatchEvent({
     owner,
     repo,
     event_type: "factory-epic",
-    client_payload: { issue: issueNumber },
+    client_payload: mode ? { issue: issueNumber, mode } : { issue: issueNumber },
   });
 }
 

@@ -23,16 +23,31 @@ function normalise(value: string | undefined): DecomposeMode | undefined {
   return undefined;
 }
 
+export interface DecomposeModeSources {
+  /** Mode carried on the repository_dispatch payload — set when a human approved. */
+  dispatched?: string;
+  /** Repo-wide `FACTORY_DECOMPOSE_MODE` variable. */
+  repoDefault?: string;
+}
+
 /**
- * Resolve the decomposition mode for one epic. Pure — the body and the repo-wide
- * default are both injected.
+ * Resolve the decomposition mode for one epic. Pure — every input is injected.
  *
- * Precedence is most-specific-first: the epic's own "Decomposition intent" dropdown
- * beats the repo's `FACTORY_DECOMPOSE_MODE` variable, which beats the baked "propose".
- * Anything unrecognised at either level falls through rather than guessing "auto",
- * since "auto" is the branch that opens issues and dispatches builds unattended.
+ * Precedence is most-specific-first:
+ *   1. the mode on the dispatch payload — an explicit "approve" comment, which must
+ *      outrank a dropdown the reporter set before seeing the breakdown
+ *   2. the epic's own "Decomposition intent" dropdown
+ *   3. the repo's `FACTORY_DECOMPOSE_MODE` variable
+ *   4. the baked "propose"
+ *
+ * Anything unrecognised at any level falls through rather than guessing "auto", since
+ * "auto" is the branch that opens issues and dispatches builds unattended.
  */
-export function parseDecomposeMode(body: string, fallback: string = DECOMPOSE_MODE): DecomposeMode {
+export function parseDecomposeMode(
+  body: string,
+  sources: DecomposeModeSources = {},
+): DecomposeMode {
+  const { dispatched, repoDefault = DECOMPOSE_MODE } = sources;
   const field = DECOMPOSE_FIELD.exec(body ?? "")?.[1];
-  return normalise(field) ?? normalise(fallback) ?? "propose";
+  return normalise(dispatched) ?? normalise(field) ?? normalise(repoDefault) ?? "propose";
 }

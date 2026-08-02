@@ -8,7 +8,7 @@ body:
       value: |
         An epic is decomposed by the orchestrator into child tickets, each of which flows through the normal implement → validate → review → gate path. Describe the whole, not the parts — the breakdown is the automation's job, though you can steer it below.
 
-        Two settings at the bottom control the automation: **Automation intent** decides whether decomposition runs at all, and **Decomposition intent** decides whether it proposes the breakdown for review or creates the child tickets straight away.
+        Two settings at the bottom control the automation: **Automation intent** decides whether decomposition runs at all, and **Decomposition intent** decides whether it proposes the breakdown for you to approve or creates the child tickets straight away.
 
   - type: textarea
     id: objective
@@ -61,7 +61,7 @@ body:
     id: decompose
     attributes:
       label: Decomposition intent
-      description: What decomposition does with its result. Overrides the repo-wide FACTORY_DECOMPOSE_MODE default.
+      description: What decomposition does with its result. Overrides the repo-wide FACTORY_DECOMPOSE_MODE default. With "propose", reply `approve` on the breakdown comment to create the tickets.
       options:
         - "propose child tickets, wait for human approval"
         - "auto-create child tickets immediately"

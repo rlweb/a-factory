@@ -110,21 +110,43 @@ Decomposition itself writes no code, so unlike a ticket or bug it defaults to on
 
 | Mode | Behaviour |
 | --- | --- |
-| `propose` (default) | Posts the proposed breakdown as a comment and creates nothing, so you can review the split first. Re-trigger in auto mode, or edit the epic, to act on it. |
-| `auto` | Creates each child ticket. Children with no dependencies are labelled `ready` and dispatched immediately; dependents are labelled `blocked` until their prerequisites merge. |
+| `propose` (default) | Posts the breakdown as a comment, labels the epic `awaiting-answer`, and creates nothing until you approve. |
+| `auto` | Creates each child ticket immediately. Children with no dependencies are labelled `ready` and dispatched; dependents are labelled `blocked`. |
 
-Precedence is most-specific-first: the epic's own **Decomposition intent** dropdown beats
-the repo-wide `FACTORY_DECOMPOSE_MODE` variable, which beats the baked default of
-`propose`. An unrecognised value at either level falls through to `propose` rather than
-guessing — `auto` is the branch that opens issues and dispatches builds unattended.
+**Approving a proposed breakdown.** Reply on the epic with `approve` (or `approved`,
+`lgtm`, `go ahead`, `ship it`, `/approve`) as the **first line** of your comment, and the
+child tickets are created. Reply with anything else and it's treated as revision feedback:
+the epic re-decomposes with your comment in context and proposes again, looping until you
+approve.
+
+Approval is anchored to the start of the comment on purpose — a substring match would read
+"I don't approve of splitting T2 that way" as consent. A negation on that line vetoes it,
+and quoted (`>`) lines are skipped so replying above a quoted proposal works.
+
+The approved plan is embedded in the breakdown comment as a hidden base64 block, and
+approval replays it **verbatim with no model call**. That matters: prompting the decomposer
+twice does not give the same answer twice (one epic went 4 subtasks, then 3), so without
+this the tickets you got wouldn't be the ones you approved. If a plan is too large to fit
+in a comment the factory says so, and approving re-plans from scratch instead.
+
+Precedence for the mode is most-specific-first: an `approve` comment beats the epic's
+**Decomposition intent** dropdown (you chose that before seeing the breakdown), which beats
+the repo-wide `FACTORY_DECOMPOSE_MODE` variable, which beats the baked default of `propose`.
+An unrecognised value at any level falls through to `propose` rather than guessing — `auto`
+is the branch that opens issues and dispatches builds unattended.
+
+Note that nothing yet promotes a `blocked` child when its prerequisites merge; add `ready`
+yourself and the build starts.
 
 ### Comments — answering the agent, and ad-hoc `/oc`
 
 Two separate mechanisms:
 
-**Answering a question** (issue comments only). Both triage (clarifying questions on
-vague issues) and implement (ambiguous plans) can post `awaiting-answer` questions. A
-reply resumes the work. Who can resume is governed by
+**Answering a question** (issue comments only). Triage (clarifying questions on vague
+issues), implement (ambiguous plans), and epic decomposition (a breakdown awaiting
+approval) all post `awaiting-answer` questions. A reply resumes the work — for an epic,
+into either ticket creation or another proposal round, per Epic above. Who can resume is
+governed by
 `FACTORY_TRUSTED_ASSOCIATIONS`: an OWNER, MEMBER, or COLLABORATOR resumes immediately;
 anyone else has their answer accepted but held until a maintainer 👍s the comment or
 adds the `answer-approved` label. The factory ignores its own comments (marked with
@@ -237,7 +259,7 @@ would otherwise silently zero a limit).
 | `FACTORY_PROTECTED_PATHS` | comma-separated | `.github/**,infra/**,**/migrations/**,**/*.tf,src/auth/**,package.json,pnpm-lock.yaml,package-lock.json` | Globs that force human review |
 | `FACTORY_TRUSTED_ASSOCIATIONS` | comma-separated | `OWNER,MEMBER,COLLABORATOR` | author_association levels that resume immediately |
 | `FACTORY_SERVER_TIMEOUT_MS` | number | `15000` | OpenCode server boot timeout |
-| `FACTORY_DECOMPOSE_MODE` | `propose` \| `auto` | `propose` | Repo-wide epic decomposition default; an epic's own "Decomposition intent" field wins |
+| `FACTORY_DECOMPOSE_MODE` | `propose` \| `auto` | `propose` | Repo-wide epic decomposition default. An epic's "Decomposition intent" field wins over it, and an `approve` comment wins over both |
 
 Encoding notes:
 
