@@ -75,6 +75,13 @@ export const VALIDATION_MAX_ATTEMPTS = numEnv(
 /** Max eager-question rounds before proceeding on assumptions. 0 = uncapped. */
 export const QUESTION_MAX_ROUNDS = numEnv("FACTORY_QUESTION_ROUNDS", DEFAULT_QUESTION_ROUNDS);
 
+/**
+ * Repo-wide default for epic decomposition: "propose" comments the breakdown, "auto"
+ * creates the child tickets. An epic's own "Decomposition intent" field overrides this —
+ * see parseDecomposeMode. Kept a plain string because the parser validates it.
+ */
+export const DECOMPOSE_MODE = strEnv("FACTORY_DECOMPOSE_MODE", "propose");
+
 /** Marker appended to every factory-authored comment so resume never re-triggers on it. */
 export const BOT_MARKER = "<!-- factory-bot -->";
 

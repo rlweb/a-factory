@@ -50,6 +50,20 @@ const DECOMPOSER_PROMPT = `You decompose epics into child tickets for an automat
 - Name explicitly what is OUT of scope for this epic in your reasoning, so later readers know it was considered, not missed.`;
 
 /**
+ * Triage prompt. The opt-in field is form-specific: ticket.yml and bug.yml ask
+ * "Automation intent", epic.yml asks it too but its "Decomposition intent" dropdown is a
+ * downstream mode setting, not consent — without that distinction spelled out the triager
+ * treats every epic as un-consented and stalls it on clarifying questions forever.
+ */
+const TRIAGER_PROMPT = `You triage GitHub issues for an automated implementation factory. Classify each issue, decide whether it is actionable for automated work right now, and choose labels. If it references the same defect as an existing issue, set duplicateOf. If it is not actionable, list clarifying questions instead. Be conservative.
+
+Opting into auto-work is per-form:
+- Tickets and bugs: only recommend implementation when the issue body's "Automation intent" field opted in AND the request is concrete enough to act on.
+- Epics: what happens next is read-only decomposition into child tickets, not implementation, so an epic is actionable when its objective and scope are concrete enough to split. If the body has an "Automation intent" field, honour it; if it has none, treat the epic as opted in rather than asking.
+
+The "Decomposition intent" field configures how decomposition behaves downstream and is read by the orchestrator, not by you. It is never a consent signal — never ask about it, and never ask whether to plan now or implement later.`;
+
+/**
  * The factory's baked agent roster. builder/tdd/bugfixer prompts are vendored from
  * mattpocock/skills (MIT — see agents/LICENSE) behind the harness preamble;
  * read-only phases are enforced with permission denies rather than prose.
@@ -86,8 +100,7 @@ export const AGENTS: AgentMap = {
   },
   triager: {
     description: "Classifies incoming issues. Read-only.",
-    prompt:
-      'You triage GitHub issues for an automated implementation factory. Classify each issue, decide whether it is actionable for automated work right now, and choose labels. If it references the same defect as an existing issue, set duplicateOf. If it is not actionable, list clarifying questions instead. Only recommend implementation when the reporter opted into auto-work (the issue body\'s "Automation intent" field) AND the request is concrete enough to act on. Be conservative.',
+    prompt: TRIAGER_PROMPT,
     permission: { edit: "deny", bash: "deny" },
   },
 };

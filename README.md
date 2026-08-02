@@ -74,6 +74,7 @@ Both forms feed the same pipeline; which one you pick changes how the work is do
 | --- | --- | --- | --- |
 | **Ticket / feature** | `ticket`, `triage` | `builder` — implement end to end | attempt implementation if low risk |
 | **Bug report** | `bug`, `triage` | `bugfixer` — reproduce first, minimal diff, regression test | **triage only** |
+| **Epic** | `epic`, `triage` | `decomposer` — split into child tickets, no code | decompose automatically |
 
 Note the differing defaults: a ticket is queued for automated work by default, a bug
 is not. That's deliberate — you usually want eyes on a defect before an agent changes
@@ -102,12 +103,20 @@ issue thread, then splits it into child
 tickets that are independently shippable and sized to a single agent session, wiring
 dependency edges only where ordering genuinely matters.
 
-**Today it always runs in "propose" mode**: it posts the proposed breakdown as a
-comment and creates nothing, so you can review the split before committing to it. The
-form offers "auto-create child tickets immediately", but the reusable workflow pins
-`DECOMPOSE_MODE: propose` — honouring that dropdown needs a workflow change. In auto
-mode, children with no dependencies are labelled `ready` and dispatched immediately
-while dependents are labelled `blocked`.
+The epic form has two settings, and they do different jobs. **Automation intent** decides
+whether decomposition runs at all — flip it to "triage only" to hold the epic for a human.
+Decomposition itself writes no code, so unlike a ticket or bug it defaults to on.
+**Decomposition intent** decides what decomposition does with its result:
+
+| Mode | Behaviour |
+| --- | --- |
+| `propose` (default) | Posts the proposed breakdown as a comment and creates nothing, so you can review the split first. Re-trigger in auto mode, or edit the epic, to act on it. |
+| `auto` | Creates each child ticket. Children with no dependencies are labelled `ready` and dispatched immediately; dependents are labelled `blocked` until their prerequisites merge. |
+
+Precedence is most-specific-first: the epic's own **Decomposition intent** dropdown beats
+the repo-wide `FACTORY_DECOMPOSE_MODE` variable, which beats the baked default of
+`propose`. An unrecognised value at either level falls through to `propose` rather than
+guessing — `auto` is the branch that opens issues and dispatches builds unattended.
 
 ### Comments — answering the agent, and ad-hoc `/oc`
 
@@ -228,6 +237,7 @@ would otherwise silently zero a limit).
 | `FACTORY_PROTECTED_PATHS` | comma-separated | `.github/**,infra/**,**/migrations/**,**/*.tf,src/auth/**,package.json,pnpm-lock.yaml,package-lock.json` | Globs that force human review |
 | `FACTORY_TRUSTED_ASSOCIATIONS` | comma-separated | `OWNER,MEMBER,COLLABORATOR` | author_association levels that resume immediately |
 | `FACTORY_SERVER_TIMEOUT_MS` | number | `15000` | OpenCode server boot timeout |
+| `FACTORY_DECOMPOSE_MODE` | `propose` \| `auto` | `propose` | Repo-wide epic decomposition default; an epic's own "Decomposition intent" field wins |
 
 Encoding notes:
 

@@ -38,7 +38,8 @@ on:
 # Config variables consumed below (set as org and/or repo Actions variables):
 #   FACTORY_VALIDATION_ATTEMPTS, FACTORY_QUESTION_ROUNDS,
 #   FACTORY_GATE_MAX_FILES, FACTORY_PROTECTED_PATHS (comma-separated),
-#   FACTORY_TRUSTED_ASSOCIATIONS (comma-separated), FACTORY_SERVER_TIMEOUT_MS
+#   FACTORY_TRUSTED_ASSOCIATIONS (comma-separated), FACTORY_SERVER_TIMEOUT_MS,
+#   FACTORY_DECOMPOSE_MODE (propose | auto)
 # The model is NOT a variable — set it in the consumer repo's opencode.json.
 # Repo setup (deps/caches) is NOT a variable either — commit an optional local
 # action at .github/actions/factory-setup; the build job runs it when present.
@@ -49,6 +50,8 @@ env:
   FACTORY_PROTECTED_PATHS: ${{ vars.FACTORY_PROTECTED_PATHS }}
   FACTORY_TRUSTED_ASSOCIATIONS: ${{ vars.FACTORY_TRUSTED_ASSOCIATIONS }}
   FACTORY_SERVER_TIMEOUT_MS: ${{ vars.FACTORY_SERVER_TIMEOUT_MS }}
+  # Repo-wide default only; an epic's own "Decomposition intent" field overrides it.
+  FACTORY_DECOMPOSE_MODE: ${{ vars.FACTORY_DECOMPOSE_MODE }}
 
 jobs:
   triage:
@@ -86,7 +89,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ISSUE_NUMBER: ${{ inputs.issue_number }}
-          DECOMPOSE_MODE: propose
 
   build:
     if: >

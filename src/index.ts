@@ -12,6 +12,7 @@ export { run as runImplement } from "./implement.js";
 export { AGENTS, implementAgentFor, loadSkillPrompt, mergeAgents } from "./lib/agents.js";
 export {
   BOT_MARKER,
+  DECOMPOSE_MODE,
   GATE,
   LABELS,
   listEnv,
@@ -23,6 +24,7 @@ export {
   TRUSTED_ASSOCIATIONS,
   VALIDATION_MAX_ATTEMPTS,
 } from "./lib/config.js";
+export { type DecomposeMode, parseDecomposeMode } from "./lib/decompose.js";
 export { type GateConfig, type GateDecision, gate, type Risk } from "./lib/gate.js";
 export { decompositionSchema, planSchema, riskSchema, triageSchema } from "./lib/schemas.js";
 export {

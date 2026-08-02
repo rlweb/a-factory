@@ -1,4 +1,5 @@
 import { BOT_MARKER, LABELS } from "./lib/config.js";
+import { parseDecomposeMode } from "./lib/decompose.js";
 import {
   addLabels,
   comment,
@@ -25,8 +26,6 @@ interface Decomposition {
 
 export async function run() {
   const epicNumber = Number(process.env.ISSUE_NUMBER);
-  // "auto" creates children immediately; otherwise just proposes them in a comment.
-  const mode = (process.env.DECOMPOSE_MODE ?? "propose").toLowerCase();
   if (!epicNumber) throw new Error("ISSUE_NUMBER is required");
 
   // The epic job doesn't resolve the issue into env — fetch it ourselves.
@@ -34,6 +33,10 @@ export async function run() {
   const { title: epicTitle, body: epicBody } = envTitle
     ? { title: envTitle, body: process.env.ISSUE_BODY ?? "" }
     : await getIssue(epicNumber);
+
+  // "auto" creates children immediately; otherwise just proposes them in a comment.
+  // The epic's own dropdown wins over the repo-wide FACTORY_DECOMPOSE_MODE default.
+  const mode = parseDecomposeMode(epicBody);
 
   log(`epic: start for #${epicNumber} "${epicTitle}" (mode ${mode})`);
 

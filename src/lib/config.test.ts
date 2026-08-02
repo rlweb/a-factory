@@ -54,6 +54,14 @@ describe("strEnv", () => {
   });
 });
 
+describe("DECOMPOSE_MODE", () => {
+  it("bakes propose as the default so an unset var never auto-creates tickets", async () => {
+    // Read at module load, so assert the resolved value rather than re-setting env.
+    const { DECOMPOSE_MODE } = await import("./config.js");
+    expect(DECOMPOSE_MODE).toBe("propose");
+  });
+});
+
 describe("listEnv", () => {
   const KEY = "FACTORY_TEST_LIST";
   const def = ["a", "b"];
