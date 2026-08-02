@@ -67,40 +67,102 @@ export async function withOpencode<T>(
   }
 }
 
+/** Flatten to one line and cap, so a single event can't swamp the log. */
+function brief(text: string, max = 300): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
 /**
  * Background-tail the server's SSE event stream so the Actions log shows what the
- * agent is doing between "prompt sent" and "prompt returned": tool calls, file
- * edits, and errors. The stream ends when the server closes; failures here must
- * never break a run, so everything is swallowed.
+ * agent is doing between "prompt sent" and "prompt returned". The stream ends when
+ * the server closes; failures here must never break a run, so everything is
+ * swallowed. Parts stream as deltas, so everything is deduped and capped — the aim
+ * is a readable trace, not a transcript.
  */
 function streamAgentEvents(client: Opencode["client"], signal: AbortSignal): void {
   void (async () => {
-    // A tool part updates many times (streaming deltas); log each status once.
     const seen = new Set<string>();
+    /** Log once per key; returns false when this event was already reported. */
+    const first = (key: string) => {
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    };
+
     try {
       const events = await client.event.subscribe({ signal });
       for await (const event of events.stream as AsyncIterable<Event>) {
         switch (event.type) {
           case "message.part.updated": {
             const part = event.properties.part;
-            if (part.type !== "tool" || part.state.status === "pending") break;
-            const key = `${part.id}:${part.state.status}`;
-            if (seen.has(key)) break;
-            seen.add(key);
-            const state = part.state;
-            const detail = (
-              state.status === "error"
-                ? state.error
-                : ("title" in state ? state.title : undefined) || JSON.stringify(state.input)
-            )?.slice(0, 200);
-            log(`opencode: [tool] ${part.tool} ${state.status}${detail ? ` — ${detail}` : ""}`);
+            if (part.type === "tool") {
+              const state = part.state;
+              if (state.status === "pending" || !first(`${part.id}:${state.status}`)) break;
+              const detail =
+                state.status === "error"
+                  ? state.error
+                  : ("title" in state ? state.title : undefined) || JSON.stringify(state.input);
+              log(
+                `opencode: [tool] ${part.tool} ${state.status}${detail ? ` — ${brief(detail)}` : ""}`,
+              );
+            } else if (part.type === "text") {
+              // Text arrives as deltas — report it once, when the part is finished.
+              if (!part.time?.end || part.synthetic || part.ignored) break;
+              if (!part.text.trim() || !first(`text:${part.id}`)) break;
+              log(`opencode: [say] ${brief(part.text, 500)}`);
+            }
             break;
           }
+          case "message.updated": {
+            const info = event.properties.info;
+            if (info.role !== "assistant" || !info.time.completed) break;
+            if (!first(`msg:${info.id}`)) break;
+            const t = info.tokens;
+            log(
+              `opencode: [usage] ${info.providerID}/${info.modelID} in=${t.input} out=${t.output} ` +
+                `cache=${t.cache.read}r/${t.cache.write}w cost=$${info.cost.toFixed(4)}` +
+                `${info.finish ? ` finish=${info.finish}` : ""}`,
+            );
+            break;
+          }
+          case "todo.updated": {
+            const todos = event.properties.todos;
+            if (!todos.length) break;
+            const done = todos.filter((t) => t.status === "completed").length;
+            const current = todos.find((t) => t.status === "in_progress");
+            if (!first(`todo:${done}/${todos.length}:${current?.id ?? ""}`)) break;
+            log(
+              `opencode: [todo] ${done}/${todos.length} done` +
+                `${current ? ` — now: ${brief(current.content, 120)}` : ""}`,
+            );
+            break;
+          }
+          // Nothing can answer a permission prompt in CI, so an unanswered one is a
+          // stalled run — always surface it.
+          case "permission.updated":
+            log(
+              `opencode: [permission] ${event.properties.type} requested — ${brief(event.properties.title, 200)}`,
+            );
+            break;
+          case "permission.replied":
+            log(`opencode: [permission] replied ${event.properties.response}`);
+            break;
+          case "session.status": {
+            // Provider retries are a common cause of a slow run; busy/idle is noise.
+            const status = event.properties.status;
+            if (status.type !== "retry") break;
+            log(`opencode: [retry] attempt ${status.attempt} — ${brief(status.message, 200)}`);
+            break;
+          }
+          case "session.compacted":
+            log("opencode: [compact] context compacted — earlier turns summarised");
+            break;
           case "file.edited":
             log(`opencode: [edit] ${event.properties.file}`);
             break;
           case "session.error":
-            log(`opencode: [error] ${JSON.stringify(event.properties.error ?? {})}`);
+            log(`opencode: [error] ${brief(JSON.stringify(event.properties.error ?? {}), 500)}`);
             break;
           case "session.idle":
             log(`opencode: [idle] session ${event.properties.sessionID} finished its turn`);
