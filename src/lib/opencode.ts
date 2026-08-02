@@ -5,9 +5,12 @@ import {
   createOpencodeServer,
   type Event,
 } from "@opencode-ai/sdk";
+import { Agent, setGlobalDispatcher, fetch as undiciFetch } from "undici";
 import { mergeAgents } from "./agents.js";
 import { MODEL, PROVIDER_TIMEOUT_MS, SERVER_TIMEOUT_MS } from "./config.js";
 import { log } from "./log.js";
+
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 type Opencode = {
   client: ReturnType<typeof createOpencodeClient>;
@@ -56,14 +59,21 @@ export async function withOpencode<T>(
   log(`opencode: server up at ${server.url}`);
   const client = createOpencodeClient({
     baseUrl: server.url,
-    fetch: (req) => {
-      // @ts-expect-error Undici extensions — session.prompt() is a sync POST that blocks
-      // until the full AI response is ready, which routinely exceeds 5 min.
-      req.timeout = 6_000;
-      // @ts-expect-error
-      req.headersTimeout = 6_000;
-      return globalThis.fetch(req);
-    },
+    fetch: ((req) => {
+      const r = req as Request;
+      return undiciFetch(
+        r.url,
+        // undici's RequestInit types differ from global RequestInit at the type level
+        // but are runtime-compatible — unify via cast.
+        {
+          method: r.method,
+          headers: r.headers,
+          body: r.body,
+          signal: r.signal,
+          duplex: "half",
+        } as never,
+      ) as Promise<Response>;
+    }) as typeof globalThis.fetch,
   });
   // The SSE client retries forever on disconnect (setTimeout backoff, no attempt
   // cap), so it MUST be aborted or the process never exits once the server dies.
