@@ -54,7 +54,17 @@ export async function withOpencode<T>(
     },
   });
   log(`opencode: server up at ${server.url}`);
-  const client = createOpencodeClient({ baseUrl: server.url });
+  const client = createOpencodeClient({
+    baseUrl: server.url,
+    fetch: (req) => {
+      // @ts-expect-error Undici extensions — session.prompt() is a sync POST that blocks
+      // until the full AI response is ready, which routinely exceeds 5 min.
+      req.timeout = false;
+      // @ts-expect-error
+      req.headersTimeout = false;
+      return globalThis.fetch(req);
+    },
+  });
   // The SSE client retries forever on disconnect (setTimeout backoff, no attempt
   // cap), so it MUST be aborted or the process never exits once the server dies.
   const events = new AbortController();
