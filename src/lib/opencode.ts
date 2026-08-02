@@ -225,10 +225,11 @@ export async function injectContext(
   client: Opencode["client"],
   sessionId: string,
   text: string,
+  agent?: string,
 ): Promise<void> {
   await client.session.prompt({
     path: { id: sessionId },
-    body: { noReply: true, parts: [{ type: "text", text }] },
+    body: { noReply: true, parts: [{ type: "text", text }], ...(agent ? { agent } : {}) },
   });
 }
 

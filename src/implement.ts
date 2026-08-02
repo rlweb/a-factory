@@ -12,7 +12,7 @@ import {
   removeLabel,
 } from "./lib/github.js";
 import { log } from "./lib/log.js";
-import { injectContext, promptAgent, promptJSON, withOpencode } from "./lib/opencode.js";
+import { promptAgent, promptJSON, withOpencode } from "./lib/opencode.js";
 import { planSchema } from "./lib/schemas.js";
 import { questionCapReached } from "./lib/trust.js";
 import { runValidation } from "./lib/validate.js";
@@ -125,7 +125,7 @@ ${humanAnswers ? `\n--- ANSWERS & DISCUSSION SO FAR ---\n${humanAnswers}` : ""}`
     const session = await client.session.create({ body: { title: `impl #${issueNumber}` } });
     const sid = session.data!.id;
 
-    await injectContext(
+    await promptAgent(
       client,
       sid,
       `You are implementing a change in this repository. Follow existing conventions.
@@ -136,13 +136,9 @@ So do NOT run the full verification script or the whole test suite yourself: it 
 your shell commands time out. Verify in small, fast pieces instead — typecheck a file, run
 the single test file you touched — and leave the full run to the factory.
 
-Your work must pass that run. Do not weaken tests or the verify config to make it pass.`,
-    );
+Your work must pass that run. Do not weaken tests or the verify config to make it pass.
 
-    await promptAgent(
-      client,
-      sid,
-      `Implement the following issue end to end, editing files as needed.${forcedAssumptions}
+Implement the following issue end to end, editing files as needed.${forcedAssumptions}
 
 --- ISSUE #${issueNumber}: ${issueTitle} ---
 ${issueBody}
