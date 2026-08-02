@@ -23,6 +23,7 @@ export const HARNESS_PREAMBLE = `You run unattended inside a CI factory — ther
 - Slash-command references (/tdd, /code-review, /grilling, …) are skills that may not exist here. A "tdd" subagent IS available wherever /tdd is mentioned; skip other such steps.
 - If a referenced file doesn't exist, skip it silently.
 - Never run git commit or git push — the factory commits, pushes, validates, and reviews separately.
+- The factory runs the full validation script (format, lint, typecheck, tests) after you finish and feeds any failure back to you to fix, so never run it or the whole test suite yourself — it is slow and your shell commands time out. Verify in small, fast pieces: typecheck a file, run the single test file you touched.
 
 `;
 

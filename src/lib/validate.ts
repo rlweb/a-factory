@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { log } from "./log.js";
 
 export interface ValidationResult {
   ok: boolean;
@@ -17,6 +18,9 @@ export interface ValidationResult {
  */
 export function runValidation(cwd = process.cwd(), tailLines = 200): Promise<ValidationResult> {
   return new Promise((resolve) => {
+    log("validate: running `pnpm run validate`");
+    // Collapsible in the Actions log — the run is long and chatty, but you can open it.
+    console.log("::group::pnpm run validate");
     const child = spawn("pnpm", ["run", "validate"], {
       cwd,
       env: process.env,
@@ -25,6 +29,7 @@ export function runValidation(cwd = process.cwd(), tailLines = 200): Promise<Val
 
     let buf = "";
     const append = (chunk: Buffer) => {
+      process.stdout.write(chunk); // stream it live; the buffer is for the agent's feedback
       buf += chunk.toString();
       // Keep memory bounded on very chatty runs.
       if (buf.length > 1_000_000) buf = buf.slice(-1_000_000);
@@ -33,12 +38,17 @@ export function runValidation(cwd = process.cwd(), tailLines = 200): Promise<Val
     child.stderr.on("data", append);
 
     child.on("close", (code) => {
+      console.log("::endgroup::");
       const exitCode = code ?? 1;
-      const log = buf.split("\n").slice(-tailLines).join("\n");
-      resolve({ ok: exitCode === 0, exitCode, log });
+      resolve({
+        ok: exitCode === 0,
+        exitCode,
+        log: buf.split("\n").slice(-tailLines).join("\n"),
+      });
     });
 
     child.on("error", (e) => {
+      console.log("::endgroup::");
       resolve({ ok: false, exitCode: 1, log: `Failed to spawn validation: ${e.message}` });
     });
   });

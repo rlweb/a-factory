@@ -35,7 +35,15 @@ async function main() {
   log(`${cmd}: done`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .then(async () => {
+    // The work is done; don't let a stray handle (SDK sockets, a lingering child)
+    // hold the Actions step open for the whole job timeout. Flush stdout first —
+    // process.exit can truncate pending writes to a pipe, and CI logs are a pipe.
+    await new Promise((resolve) => process.stdout.write("", resolve));
+    process.exit(0);
+  })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

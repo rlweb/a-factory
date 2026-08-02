@@ -125,8 +125,14 @@ ${humanAnswers ? `\n--- ANSWERS & DISCUSSION SO FAR ---\n${humanAnswers}` : ""}`
       client,
       sid,
       `You are implementing a change in this repository. Follow existing conventions.
-There is a validation script (\`pnpm validate\`) that formats, lints, typechecks and runs tests.
-Your work must pass it. Do not weaken tests or the validation config to make it pass.`,
+
+The factory runs the validation script (\`pnpm validate\` — format, lint, typecheck, tests)
+for you once you finish, and will hand you the failure output to fix if it does not pass.
+So do NOT run the full validation script or the whole test suite yourself: it is slow and
+your shell commands time out. Verify in small, fast pieces instead — typecheck a file, run
+the single test file you touched — and leave the full run to the factory.
+
+Your work must pass that run. Do not weaken tests or the validation config to make it pass.`,
     );
 
     await promptAgent(
@@ -156,7 +162,8 @@ ${plan.plan?.length ? `\n--- YOUR PLAN ---\n${plan.plan.map((p) => `- ${p}`).joi
         client,
         sid,
         `The validation script failed (attempt ${attempt}/${VALIDATION_MAX_ATTEMPTS}). Fix the
-underlying cause — do not modify the validation config or delete tests. Output below:
+underlying cause — do not modify the validation config or delete tests. Fix it and stop;
+I re-run validation for you and will send the next failure if there is one. Output below:
 
 \`\`\`
 ${result.log}

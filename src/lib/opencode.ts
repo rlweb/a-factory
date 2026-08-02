@@ -54,10 +54,14 @@ export async function withOpencode<T>(
   });
   log(`opencode: server up at ${server.url}`);
   const client = createOpencodeClient({ baseUrl: server.url });
-  streamAgentEvents(client);
+  // The SSE client retries forever on disconnect (setTimeout backoff, no attempt
+  // cap), so it MUST be aborted or the process never exits once the server dies.
+  const events = new AbortController();
+  streamAgentEvents(client, events.signal);
   try {
     return await fn({ client, server });
   } finally {
+    events.abort();
     server.close();
     log("opencode: server closed");
   }
@@ -69,12 +73,12 @@ export async function withOpencode<T>(
  * edits, and errors. The stream ends when the server closes; failures here must
  * never break a run, so everything is swallowed.
  */
-function streamAgentEvents(client: Opencode["client"]): void {
+function streamAgentEvents(client: Opencode["client"], signal: AbortSignal): void {
   void (async () => {
     // A tool part updates many times (streaming deltas); log each status once.
     const seen = new Set<string>();
     try {
-      const events = await client.event.subscribe();
+      const events = await client.event.subscribe({ signal });
       for await (const event of events.stream as AsyncIterable<Event>) {
         switch (event.type) {
           case "message.part.updated": {
