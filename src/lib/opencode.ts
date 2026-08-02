@@ -59,9 +59,9 @@ export async function withOpencode<T>(
     fetch: (req) => {
       // @ts-expect-error Undici extensions — session.prompt() is a sync POST that blocks
       // until the full AI response is ready, which routinely exceeds 5 min.
-      req.timeout = false;
+      req.timeout = 6_000;
       // @ts-expect-error
-      req.headersTimeout = false;
+      req.headersTimeout = 6_000;
       return globalThis.fetch(req);
     },
   });
