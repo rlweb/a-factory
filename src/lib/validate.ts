@@ -9,19 +9,19 @@ export interface ValidationResult {
 }
 
 /**
- * Runs the project's validation script. This is the non-negotiable gate:
+ * Runs the project's verification script. This is the non-negotiable gate:
  * the agent's work is NEVER trusted until this passes. It shells out to
- * `pnpm validate` (see package.json), which must format, lint, typecheck and test.
+ * `pnpm verify` (see package.json), which must format, lint, typecheck and test.
  *
  * We capture the tail of the output so a failing run can be fed straight back
  * to the agent for a self-fix attempt.
  */
 export function runValidation(cwd = process.cwd(), tailLines = 200): Promise<ValidationResult> {
   return new Promise((resolve) => {
-    log("validate: running `pnpm run validate`");
+    log("verify: running `pnpm run verify`");
     // Collapsible in the Actions log — the run is long and chatty, but you can open it.
-    console.log("::group::pnpm run validate");
-    const child = spawn("pnpm", ["run", "validate"], {
+    console.log("::group::pnpm run verify");
+    const child = spawn("pnpm", ["run", "verify"], {
       cwd,
       env: process.env,
       shell: false,
@@ -49,7 +49,7 @@ export function runValidation(cwd = process.cwd(), tailLines = 200): Promise<Val
 
     child.on("error", (e) => {
       console.log("::endgroup::");
-      resolve({ ok: false, exitCode: 1, log: `Failed to spawn validation: ${e.message}` });
+      resolve({ ok: false, exitCode: 1, log: `Failed to spawn verification: ${e.message}` });
     });
   });
 }

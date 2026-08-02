@@ -44,7 +44,7 @@ protected paths, and file-count limits are code, not model judgment.
    implements, validates, opens a PR, and auto-merges it if the risk gate passes.
 
 What stays per-repo, and why: `validate.yml` (runs the *consuming* repo's own
-validation — the factory can't know your build; it's the required status check), the
+`pnpm verify` — the factory can't know your build; it's the required status check), the
 issue forms (committed so they render in the issue chooser — re-copy from
 `consumer-template/` on the rare form update, or add a scheduled sync workflow once
 you're past ~10 repos), the optional `factory-comment.yml` (`/oc` interface), and the
@@ -208,7 +208,7 @@ Note: every `run:` step in a composite action must declare an explicit `shell:`.
 
 ```bash
 pnpm install
-pnpm run validate      # biome check + typecheck + test
+pnpm run verify        # biome check + typecheck + test
 pnpm run build         # emit dist/ (ESM + .d.ts)
 ```
 
@@ -219,9 +219,9 @@ Planned, not yet built:
 - **MCP auth support** — let consumer repos declare MCP servers (via `opencode.json`'s
   `mcp` block) with credentials passed through as workflow secrets, so factory agents
   can reach tools like issue trackers, docs, or internal APIs during a run.
-- **Configurable validate command** — the validation loop currently hardcodes
-  `pnpm validate`; make the command per-repo configurable (likely a
-  `FACTORY_VALIDATE_COMMAND` variable) so non-pnpm and non-Node repos can consume the
+- **Configurable verify command** — the verification loop currently hardcodes
+  `pnpm verify`; make the command per-repo configurable (likely a
+  `FACTORY_VERIFY_COMMAND` variable) so non-pnpm and non-Node repos can consume the
   factory.
 - **Factory-specific skills** — a way for a consumer repo to add its own skill/prompt
   files (e.g. `.factory/skills/*.md`) that get appended to the relevant agents'

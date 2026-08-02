@@ -126,13 +126,13 @@ ${humanAnswers ? `\n--- ANSWERS & DISCUSSION SO FAR ---\n${humanAnswers}` : ""}`
       sid,
       `You are implementing a change in this repository. Follow existing conventions.
 
-The factory runs the validation script (\`pnpm validate\` — format, lint, typecheck, tests)
+The factory runs the verification script (\`pnpm verify\` — format, lint, typecheck, tests)
 for you once you finish, and will hand you the failure output to fix if it does not pass.
-So do NOT run the full validation script or the whole test suite yourself: it is slow and
+So do NOT run the full verification script or the whole test suite yourself: it is slow and
 your shell commands time out. Verify in small, fast pieces instead — typecheck a file, run
 the single test file you touched — and leave the full run to the factory.
 
-Your work must pass that run. Do not weaken tests or the validation config to make it pass.`,
+Your work must pass that run. Do not weaken tests or the verify config to make it pass.`,
     );
 
     await promptAgent(
@@ -147,12 +147,12 @@ ${plan.plan?.length ? `\n--- YOUR PLAN ---\n${plan.plan.map((p) => `- ${p}`).joi
       implAgent,
     );
 
-    log(`implement: agent finished editing; validation loop starting`);
+    log(`implement: agent finished editing; verify loop starting`);
 
     for (let attempt = 1; attempt <= VALIDATION_MAX_ATTEMPTS; attempt++) {
       const result = await runValidation();
       log(
-        `implement: validation attempt ${attempt}/${VALIDATION_MAX_ATTEMPTS} ${result.ok ? "passed" : "failed"}`,
+        `implement: verify attempt ${attempt}/${VALIDATION_MAX_ATTEMPTS} ${result.ok ? "passed" : "failed"}`,
       );
       if (result.ok) return { passed: true, attempts: attempt };
       if (attempt === VALIDATION_MAX_ATTEMPTS) {
@@ -161,9 +161,9 @@ ${plan.plan?.length ? `\n--- YOUR PLAN ---\n${plan.plan.map((p) => `- ${p}`).joi
       await promptAgent(
         client,
         sid,
-        `The validation script failed (attempt ${attempt}/${VALIDATION_MAX_ATTEMPTS}). Fix the
-underlying cause — do not modify the validation config or delete tests. Fix it and stop;
-I re-run validation for you and will send the next failure if there is one. Output below:
+        `The verification script failed (attempt ${attempt}/${VALIDATION_MAX_ATTEMPTS}). Fix the
+underlying cause — do not modify the verify config or delete tests. Fix it and stop;
+I re-run \`pnpm verify\` for you and will send the next failure if there is one. Output below:
 
 \`\`\`
 ${result.log}

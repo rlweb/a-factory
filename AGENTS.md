@@ -10,7 +10,7 @@ Single-package repo for an autonomous issue-to-merge software factory, distribut
 
 ```bash
 pnpm install
-pnpm run validate   # biome check + typecheck + test (the release gate)
+pnpm run verify     # biome check + typecheck + test (the release gate)
 pnpm run build      # tsc → dist/ (ESM + .d.ts)
 ```
 
@@ -34,7 +34,7 @@ pnpm vitest run src/lib/gate.test.ts
   - `trust.ts` — `decideResume()`: bot comments ignored, trusted associations resume, untrusted humans hold until maintainer approval.
   - `opencode.ts` — `withOpencode()` boots an in-process OpenCode server and always closes it; `promptJSON()` prompts for bare JSON and parses/retries (the SDK has no server-side structured output). The model comes from the consumer repo's `opencode.json` (strict JSON, no `FACTORY_MODEL` variable); the baked default in `config.ts` only fills its absence. No per-prompt model is sent, so repo agent-level models also win.
   - `agents.ts` — per-issue-type agent roster. builder/tdd/bugfixer prompts are vendored verbatim in `agents/*.md` from mattpocock/skills (MIT — excluded from biome; keep verbatim) behind `HARNESS_PREAMBLE`, which adapts interactive skills to unattended CI (no human to ask, no self-committing, skip dangling references) — extend the preamble rather than editing vendored files. reviewer/decomposer prompts are factory-written distillations. Layering rule: agent prompt = role + process, call-site prompt = task data + dynamic bits only. `mergeAgents()` drops any baked agent the repo's `opencode.json` defines; `implementAgentFor()` picks `bugfixer` vs `builder` by label. Read-only phases (planner/triager/reviewer/decomposer) are enforced with `permission: { edit: "deny" }`.
-  - `schemas.ts`, `github.ts`, `validate.ts` — JSON schemas for agent output, GitHub API helpers, validation runner.
+  - `schemas.ts`, `github.ts`, `validate.ts` — JSON schemas for agent output, GitHub API helpers, and the verify runner (spawns the consumer repo's `pnpm verify`; the required CI check is still named `validate`).
 - **`index.ts`** — public API surface: pure logic re-exported as primary; orchestrator `run()`s exported but deliberately secondary (they touch env/I/O).
 
 The reusable workflow routes GitHub events (issue opened → triage, labeled/dispatch → implement or epic, comment → resume, PR → review) to CLI subcommands. The build job runs the consumer's optional `.github/actions/factory-setup` local composite action (deps/caches, e.g. Playwright) before the agent, when the file exists in the checkout. The implement→review handoff happens in a single run and dispatch uses `repository_dispatch` — both are consequences of the `GITHUB_TOKEN` no-cascade rule; preserve them when editing workflows.
@@ -45,4 +45,4 @@ The reusable workflow routes GitHub events (issue opened → triage, labeled/dis
 - Node >= 20. Strict TS, built with `tsconfig.build.json`.
 - New tunables follow the pattern: baked default in `config.ts`, overridable via a `FACTORY_*` Actions variable, threaded through the `env:` block of `factory.reusable.yml`, documented in the README config table.
 - Lint/format is biome (`biome.json`); `agents/*.md` are vendored verbatim and excluded from it.
-- Releases: `pnpm run validate`, tag `vX.Y.Z`, force-move the `vX` major tag — no npm publish (see README "Versioning & release").
+- Releases: `pnpm run verify`, tag `vX.Y.Z`, force-move the `vX` major tag — no npm publish (see README "Versioning & release").

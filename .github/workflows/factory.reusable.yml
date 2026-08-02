@@ -142,7 +142,7 @@ jobs:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
       # PRs opened with GITHUB_TOKEN don't fire pull_request workflows (no-cascade
       # rule), so the consumer's validate.yml never reports on factory PRs. The
-      # implement step above only opens a PR after `pnpm validate` passed, so report
+      # implement step above only opens a PR after `pnpm verify` passed, so report
       # that result as the required `validate` status here. Human PRs still get the
       # check from validate.yml.
       - name: Report validate status on factory PR
@@ -157,7 +157,7 @@ jobs:
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner, repo: context.repo.repo,
               sha: pr.head.sha, state: 'success', context: 'validate',
-              description: 'pnpm validate passed in the factory build job',
+              description: 'pnpm verify passed in the factory build job',
             });
 
   review:
