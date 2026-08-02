@@ -6,7 +6,7 @@ import {
   type Event,
 } from "@opencode-ai/sdk";
 import { mergeAgents } from "./agents.js";
-import { MODEL, SERVER_TIMEOUT_MS } from "./config.js";
+import { MODEL, PROVIDER_TIMEOUT_MS, SERVER_TIMEOUT_MS } from "./config.js";
 import { log } from "./log.js";
 
 type Opencode = {
@@ -49,6 +49,7 @@ export async function withOpencode<T>(
     config: {
       ...(useFallbackModel ? { model: `${MODEL.providerID}/${MODEL.modelID}` } : {}),
       agent: mergeAgents(repoConfig.agent),
+      provider: { [MODEL.providerID]: { options: { timeout: PROVIDER_TIMEOUT_MS } } },
       ...configOverride,
     },
   });

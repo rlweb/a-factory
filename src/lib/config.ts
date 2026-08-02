@@ -116,3 +116,6 @@ export const LABELS = {
 
 /** Server boot timeout — a hung session otherwise burns the whole job limit. */
 export const SERVER_TIMEOUT_MS = numEnv("FACTORY_SERVER_TIMEOUT_MS", 15_000);
+
+/** Per-LLM-API-call timeout injected into the OpenCode provider config. */
+export const PROVIDER_TIMEOUT_MS = 20 * 60 * 1000;
