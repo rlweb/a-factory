@@ -202,7 +202,9 @@ runs:
       shell: bash
 ```
 
-Note: every `run:` step in a composite action must declare an explicit `shell:`.
+Two things to know: every `run:` step in a composite action must declare an explicit
+`shell:`, and the job's `GITHUB_TOKEN` (also as `GH_TOKEN`) is in the environment, so
+your setup can authenticate against private registries or use the `gh` CLI.
 
 ## Develop
 

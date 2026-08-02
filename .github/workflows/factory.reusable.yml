@@ -106,7 +106,7 @@ jobs:
         with: { fetch-depth: 0, persist-credentials: true }
       - name: Resolve issue
         id: resolve
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const num = context.eventName === 'repository_dispatch'
@@ -129,6 +129,11 @@ jobs:
       - name: Consumer setup action
         if: steps.setup-action.outputs.exists == 'true'
         uses: ./.github/actions/factory-setup
+        # Composite actions inherit the calling step's env, so setup can authenticate
+        # (private registries, gh CLI). Both names: gh reads GH_TOKEN, most else GITHUB_TOKEN.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Implement (agent + validation gate)
         id: impl
         uses: rlweb/a-factory@main
@@ -147,7 +152,7 @@ jobs:
       # check from validate.yml.
       - name: Report validate status on factory PR
         if: steps.impl.outputs.pr_number != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: pr } = await github.rest.pulls.get({
