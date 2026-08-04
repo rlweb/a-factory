@@ -1,5 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Question or discussion
-    url: https://github.com/OWNER/REPO/discussions
-    about: For open-ended questions, use Discussions — the factory only acts on structured issues.
