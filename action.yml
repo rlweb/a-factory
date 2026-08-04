@@ -1,0 +1,24 @@
+name: a-factory
+description: >
+  Opens an exe.dev VM running opencode when a GitHub issue is created, seeded with the
+  issue body. Questions get posted back to the issue; a human reply resumes the same
+  opencode session. Finishes with a pushed branch and a PR. Add issues[opened,closed] and
+  issue_comment[created] triggers in the consumer workflow that calls this action.
+inputs:
+  opencode-api-key:
+    description: API key for the model provider opencode uses.
+    required: true
+  exe-dev-auth:
+    description: Credential exe.dev's CLI needs to create/manage VMs non-interactively.
+    required: true
+  vm-image:
+    description: Container image exe.dev VMs boot from.
+    required: false
+    default: ""
+  github-token:
+    description: Token for commenting, labeling, and opening PRs. Defaults to the job's GITHUB_TOKEN.
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: node20
+  main: dist/index.js
