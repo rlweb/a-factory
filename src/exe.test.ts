@@ -71,8 +71,15 @@ describe("exe", () => {
 
       const [createBin, createArgs] = h.execFileSync.mock.calls[0] ?? [];
       expect(createBin).toBe("ssh");
-      expect(createArgs.slice(0, 4)).toEqual(["-i", expect.any(String), "-o", "StrictHostKeyChecking=accept-new"]);
-      expect(createArgs.slice(4)).toEqual([
+      expect(createArgs.slice(0, 6)).toEqual([
+        "-i",
+        expect.any(String),
+        "-o",
+        expect.stringContaining("UserKnownHostsFile="),
+        "-o",
+        "StrictHostKeyChecking=yes",
+      ]);
+      expect(createArgs.slice(6)).toEqual([
         "exe.dev",
         "new",
         "--name",

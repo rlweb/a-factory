@@ -24391,7 +24391,9 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 var OPENCODE_PORT = 4096;
+var PINNED_HOSTS = "exe.dev,*.exe.xyz ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDEKtEcRW8OBtro5B/MG+EaisD+ZVwwHFa5m7M8wFwBlMmPJJssY+1aGBRW3b9InAeCnTU2Kt7gazqbg/9od1KnK6x5piQNVQZ4C/lrjsC2ScBrOydnw9ry9G2+voFCAk+dQGabIrIT6gqqDJNOqxgFiG/lA3Xx6KwpfwI2BH5f3ab2fHCR2BGAC5jlB2RJXPgly80hMxYEHqexhJxYRwC+deeLrQSG795we9rSzPmdz58t9+9jLTKkyyqWKe/hmBvty1AYrEmRsefu6/TUrIGi/UWJfa+RBIQtFgWqN6xT1F6rRwELeVOfwwr5tZbsmgWY5frZU3EOtVWcF7Ve3gfL";
 var keyPath;
+var knownHostsPath;
 function identity() {
   if (!keyPath) {
     const key = core.getInput("ssh-exe-private-key", { required: true });
@@ -24401,11 +24403,20 @@ function identity() {
 `, { mode: 384 });
     chmodSync(keyPath, 384);
   }
-  return ["-i", keyPath, "-o", "StrictHostKeyChecking=accept-new"];
+  return ["-i", keyPath];
+}
+function hostVerification() {
+  if (!knownHostsPath) {
+    const dir = mkdtempSync(join(tmpdir(), "exe-dev-hosts-"));
+    knownHostsPath = join(dir, "known_hosts");
+    writeFileSync(knownHostsPath, `${PINNED_HOSTS}
+`, { mode: 384 });
+  }
+  return ["-o", `UserKnownHostsFile=${knownHostsPath}`, "-o", "StrictHostKeyChecking=yes"];
 }
 function ssh(args) {
   try {
-    return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
+    return execFileSync("ssh", [...identity(), ...hostVerification(), ...args], { encoding: "utf8" });
   } catch (e) {
     const err = e;
     const out = [err.stdout, err.stderr].filter((s) => s && s.trim()).map((s) => s.trim()).join("\n");
