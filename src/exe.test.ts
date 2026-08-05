@@ -65,7 +65,7 @@ describe("exe", () => {
 
   describe("createVm", () => {
     it("creates the VM with the configured image and starts opencode serve", () => {
-      exe.createVm("a-factory-issue-7", { GITHUB_TOKEN: "tok", OPENCODE_API_KEY: "key" });
+      exe.createVm("a-factory-issue-7");
 
       expect(h.execFileSync).toHaveBeenCalledTimes(2);
 
@@ -102,14 +102,14 @@ describe("exe", () => {
       expect(runBin).toBe("ssh");
       expect(runArgs.slice(-2)[0]).toBe("a-factory-issue-7.exe.xyz");
       const command = runArgs.slice(-2)[1];
-      expect(command).toContain("export GITHUB_TOKEN=\"tok\";");
-      expect(command).toContain("export OPENCODE_API_KEY=\"key\";");
+      expect(command).not.toContain("GITHUB_TOKEN");
+      expect(command).not.toContain("export ");
       expect(command).toContain(`opencode serve --port ${exe.OPENCODE_PORT} --hostname 0.0.0.0`);
     });
 
     it("omits unset resource inputs and always passes --no-email", () => {
       h.getInput.mockImplementation((name: string) => (name === "ssh-exe-private-key" ? "auth" : ""));
-      exe.createVm("a-factory-issue-7", {});
+      exe.createVm("a-factory-issue-7");
       const createArgs = h.execFileSync.mock.calls[0]?.[1] ?? [];
       expect(createArgs).not.toContain("--image");
       expect(createArgs).not.toContain("--cpu");

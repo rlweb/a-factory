@@ -19680,7 +19680,7 @@ var require_core = __commonJS({
       process.env["PATH"] = `${inputPath}${path.delimiter}${process.env["PATH"]}`;
     }
     exports.addPath = addPath;
-    function getInput4(name, options) {
+    function getInput3(name, options) {
       const val = process.env[`INPUT_${name.replace(/ /g, "_").toUpperCase()}`] || "";
       if (options && options.required && !val) {
         throw new Error(`Input required and not supplied: ${name}`);
@@ -19690,9 +19690,9 @@ var require_core = __commonJS({
       }
       return val.trim();
     }
-    exports.getInput = getInput4;
+    exports.getInput = getInput3;
     function getMultilineInput(name, options) {
-      const inputs = getInput4(name, options).split("\n").filter((x) => x !== "");
+      const inputs = getInput3(name, options).split("\n").filter((x) => x !== "");
       if (options && options.trimWhitespace === false) {
         return inputs;
       }
@@ -19702,7 +19702,7 @@ var require_core = __commonJS({
     function getBooleanInput(name, options) {
       const trueValue = ["true", "True", "TRUE"];
       const falseValue = ["false", "False", "FALSE"];
-      const val = getInput4(name, options);
+      const val = getInput3(name, options);
       if (trueValue.includes(val))
         return true;
       if (falseValue.includes(val))
@@ -24413,7 +24413,7 @@ function vmName(issueNumber) {
 function vmUrl(name) {
   return `https://${name}.exe.xyz:${OPENCODE_PORT}`;
 }
-function createVm(name, env) {
+function createVm(name) {
   const image = core.getInput("vm-image");
   const cpu = core.getInput("vm-cpu");
   const disk = core.getInput("vm-disk");
@@ -24436,10 +24436,9 @@ function createVm(name, env) {
     ...vmEnv.flatMap((e) => ["--env", e]),
     "--no-email"
   ]);
-  const exportEnv = Object.entries(env).map(([k, v]) => `export ${k}=${JSON.stringify(v)};`).join(" ");
   ssh([
     `${name}.exe.xyz`,
-    `${exportEnv} nohup opencode serve --port ${OPENCODE_PORT} --hostname 0.0.0.0 >/tmp/opencode.log 2>&1 </dev/null & disown`
+    `nohup opencode serve --port ${OPENCODE_PORT} --hostname 0.0.0.0 >/tmp/opencode.log 2>&1 </dev/null & disown`
   ]);
 }
 function destroyVm(name) {
@@ -26206,10 +26205,11 @@ function implementPrompt(issueNumber, title, body) {
 ${body}
 
 Steps:
-1. Clone https://x-access-token:$GITHUB_TOKEN@github.com/${owner}/${repo}.git.
+1. Clone https://github.int.exe.xyz/${owner}/${repo}.git \u2014 GitHub access comes from
+   exe.dev's GitHub integration attached to this VM.
 2. Create and check out branch "${branch}".
 3. Implement the issue, following the repo's existing conventions.
-4. Commit and push the branch \u2014 the clone URL above already carries push credentials.
+4. Commit and push the branch.
 5. If you're blocked and need something clarified before you can proceed, don't push a
    partial branch \u2014 just report status "question" with what you need to know.
 
@@ -26267,10 +26267,7 @@ Closes #${issueNumber}`
 async function onOpen(issueNumber) {
   const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber });
   const vm = vmName(issueNumber);
-  createVm(vm, {
-    GITHUB_TOKEN: core4.getInput("github-token", { required: true }),
-    OPENCODE_API_KEY: core4.getInput("opencode-api-key", { required: true })
-  });
+  createVm(vm);
   const url = vmUrl(vm);
   await waitForServer(url);
   const client2 = connect(url);

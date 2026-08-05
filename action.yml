@@ -5,9 +5,6 @@ description: >
   opencode session. Finishes with a pushed branch and a PR. Add issues[opened,closed] and
   issue_comment[created] triggers in the consumer workflow that calls this action.
 inputs:
-  opencode-api-key:
-    description: API key for the model provider opencode uses.
-    required: true
   ssh-exe-private-key:
     description: SSH private key used to authenticate `ssh exe.dev` calls.
     required: true

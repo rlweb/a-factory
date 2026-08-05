@@ -44,10 +44,11 @@ export function implementPrompt(issueNumber: number, title: string, body: string
 ${body}
 
 Steps:
-1. Clone https://x-access-token:$GITHUB_TOKEN@github.com/${owner}/${repo}.git.
+1. Clone https://github.int.exe.xyz/${owner}/${repo}.git — GitHub access comes from
+   exe.dev's GitHub integration attached to this VM.
 2. Create and check out branch "${branch}".
 3. Implement the issue, following the repo's existing conventions.
-4. Commit and push the branch — the clone URL above already carries push credentials.
+4. Commit and push the branch.
 5. If you're blocked and need something clarified before you can proceed, don't push a
    partial branch — just report status "question" with what you need to know.
 
@@ -110,10 +111,7 @@ export async function onOpen(issueNumber: number): Promise<void> {
   const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber });
   const vm = exe.vmName(issueNumber);
 
-  exe.createVm(vm, {
-    GITHUB_TOKEN: core.getInput("github-token", { required: true }),
-    OPENCODE_API_KEY: core.getInput("opencode-api-key", { required: true }),
-  });
+  exe.createVm(vm);
   const url = exe.vmUrl(vm);
   await waitForServer(url);
 

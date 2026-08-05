@@ -38,10 +38,10 @@ export function vmUrl(name: string): string {
 }
 
 /** Creates a VM and starts opencode on it in server mode, backgrounded so the SSH call
- * returns once it's launched rather than blocking for the VM's lifetime. `env` is exported
- * into the VM's shell so both the opencode server and the shell commands the agent runs
- * (git clone/push) can see it — e.g. GITHUB_TOKEN, OPENCODE_API_KEY. */
-export function createVm(name: string, env: Record<string, string>): void {
+ * returns once it's launched rather than blocking for the VM's lifetime. VM-level env vars
+ * come from the vm-env input (e.g. OPENCODE_API_KEY). GitHub access is handled by exe.dev's
+ * GitHub integration, not by token injection — see https://exe.dev/docs/integrations-github. */
+export function createVm(name: string): void {
   const image = core.getInput("vm-image");
   const cpu = core.getInput("vm-cpu");
   const disk = core.getInput("vm-disk");
@@ -72,12 +72,9 @@ export function createVm(name: string, env: Record<string, string>): void {
     ...vmEnv.flatMap((e) => ["--env", e]),
     "--no-email",
   ]);
-  const exportEnv = Object.entries(env)
-    .map(([k, v]) => `export ${k}=${JSON.stringify(v)};`)
-    .join(" ");
   ssh([
     `${name}.exe.xyz`,
-    `${exportEnv} nohup opencode serve --port ${OPENCODE_PORT} --hostname 0.0.0.0 >/tmp/opencode.log 2>&1 </dev/null & disown`,
+    `nohup opencode serve --port ${OPENCODE_PORT} --hostname 0.0.0.0 >/tmp/opencode.log 2>&1 </dev/null & disown`,
   ]);
 }
 

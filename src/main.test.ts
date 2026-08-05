@@ -72,7 +72,7 @@ describe("prompt builders", () => {
     expect(prompt).toContain("ISSUE #7: Fix the bug");
     expect(prompt).toContain("body text");
     expect(prompt).toContain('branch "factory/issue-7"');
-    expect(prompt).toContain("acme/widgets");
+    expect(prompt).toContain("https://github.int.exe.xyz/acme/widgets.git");
   });
 
   it("builds the continue prompt embedding the user reply", () => {
@@ -133,10 +133,7 @@ describe("onOpen", () => {
 
     await onOpen(7);
 
-    expect(h.exe.createVm).toHaveBeenCalledWith("factory-issue-7", {
-      GITHUB_TOKEN: "token",
-      OPENCODE_API_KEY: "token",
-    });
+    expect(h.exe.createVm).toHaveBeenCalledWith("factory-issue-7");
     expect(h.oc.connect).toHaveBeenCalledWith("https://factory-issue-7.exe.xyz:4096");
     expect(h.oc.createSession).toHaveBeenCalledWith(expect.anything(), "issue #7");
     expect(h.oc.promptJSON).toHaveBeenCalledWith(

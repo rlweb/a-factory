@@ -29,28 +29,25 @@ jobs:
       - uses: actions/checkout@v6
       - uses: rlweb/a-factory@v1
         with:
-          opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
           ssh-exe-private-key: ${{ secrets.SSH_EXE_PRIVATE_KEY }}
+          vm-env: |
+            OPENCODE_API_KEY=${{ secrets.OPENCODE_API_KEY }}
           vm-cpu: 4
           vm-memory: 8G
           vm-disk: 50G
           vm-tag: prod,automation
-          vm-env: |
-            REGION=us-east
-            LOG_LEVEL=info
 ```
 
 ### Inputs
 
 | Input               | Required | Description                                              |
 | -------------------- | -------- | ---------------------------------------------------------- |
-| `opencode-api-key`    | yes      | Model provider API key opencode uses on the VM.             |
 | `ssh-exe-private-key`   | yes      | SSH private key for `ssh exe.dev` calls.                        |
 | `vm-image`              | no       | Custom VM image (defaults to this repo's own, see `Dockerfile`). |
 | `vm-name-prefix`        | no       | Prefix for exe.dev VM names (default `a-factory`).                |
 | `vm-cpu`                | no       | Number of CPUs for the VM (default `2`).                         |
 | `vm-disk`               | no       | Disk size for the VM, e.g. `50G` (default `4G`).                 |
-| `vm-env`                | no       | Extra VM environment variables, one `KEY=VALUE` per line.         |
+| `vm-env`                | no       | Extra VM environment variables, one `KEY=VALUE` per line — e.g. `OPENCODE_API_KEY`. |
 | `vm-memory`             | no       | Memory allocation for the VM, e.g. `8G` (default `4GB`).          |
 | `vm-tag`                | no       | Tags for the VM, comma-separated.                                 |
 | `github-token`           | no       | Defaults to the job's `GITHUB_TOKEN`.                             |
