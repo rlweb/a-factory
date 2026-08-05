@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as core from "@actions/core";
 
-// ponytail: opencode is always started on this fixed port on every VM — no per-VM port
-// negotiation. Simplest thing that works for one agent per VM; revisit if VMs ever run more.
-export const OPENCODE_PORT = 4096;
+// pi-harness runs as a systemd service on the VM, listening on this fixed port.
+// No per-VM negotiation needed — one harness per VM.
+export const HARNESS_PORT = 4096;
 
 // exe.dev's control plane and every VM behind *.exe.xyz share one RSA host key. Pinned here so
 // ssh verifies against a known key instead of trusting/writing on first sight (accept-new) —
@@ -18,8 +18,7 @@ let keyPath: string | undefined;
 let knownHostsPath: string | undefined;
 
 /** Writes the ssh-exe-private-key input (an SSH private key) to disk once, for use as -i on
- * every `ssh exe.dev` call. exe.dev's non-interactive CI auth mechanism is unconfirmed — see
- * the plan's open items; this assumes a deploy-key-style credential. */
+ *  every `ssh exe.dev` call. */
 function identity(): string[] {
   if (!keyPath) {
     const key = core.getInput("ssh-exe-private-key", { required: true });
@@ -32,7 +31,7 @@ function identity(): string[] {
 }
 
 /** Points ssh at a known_hosts file seeded with the pinned exe.dev/VM host key and enforces it
- * via StrictHostKeyChecking=yes, so hosts are verified instead of silently accepted. */
+ *  via StrictHostKeyChecking=yes, so hosts are verified instead of silently accepted. */
 function hostVerification(): string[] {
   if (!knownHostsPath) {
     const dir = mkdtempSync(join(tmpdir(), "exe-dev-hosts-"));
@@ -64,13 +63,12 @@ export function vmName(issueNumber: number): string {
 }
 
 export function vmUrl(name: string): string {
-  return `https://${name}.exe.xyz:${OPENCODE_PORT}`;
+  return `https://${name}.exe.xyz:${HARNESS_PORT}`;
 }
 
-/** Creates a VM and starts opencode on it in server mode, backgrounded so the SSH call
- * returns once it's launched rather than blocking for the VM's lifetime. VM-level env vars
- * come from the vm-env input (e.g. OPENCODE_API_KEY). GitHub access is handled by exe.dev's
- * GitHub integration, not by token injection — see https://exe.dev/docs/integrations-github. */
+/** Creates a VM. pi-harness starts automatically via systemd — no SSH bootstrap needed.
+ *  VM-level env vars come from vm-env input (e.g. OPENCODE_API_KEY).
+ *  GitHub access is handled by exe.dev's GitHub integration. */
 export function createVm(name: string): void {
   const image = core.getInput("vm-image");
   const cpu = core.getInput("vm-cpu");
@@ -100,14 +98,10 @@ export function createVm(name: string): void {
     ...vmEnv.flatMap((e) => ["--env", e]),
     "--no-email",
   ]);
-  ssh([
-    `${name}.exe.xyz`,
-    `nohup opencode serve --port ${OPENCODE_PORT} --hostname 0.0.0.0 >/tmp/opencode.log 2>&1 </dev/null & disown`,
-  ]);
 }
 
 /** Deletes a VM. Swallows "doesn't exist" failures — callers use this as a safety-net
- * cleanup that may race with (or repeat) an earlier teardown. */
+ *  cleanup that may race with (or repeat) an earlier teardown. */
 export function destroyVm(name: string): void {
   try {
     core.info(`exe: destroying VM ${name}`);

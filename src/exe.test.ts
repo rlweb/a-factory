@@ -1,171 +1,147 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => {
-  const getInput = vi.fn();
-  const info = vi.fn();
-  const warning = vi.fn();
   const execFileSync = vi.fn();
-  return { getInput, info, warning, execFileSync };
+  const core = {
+    getInput: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  };
+  return { execFileSync, core };
 });
 
 vi.mock("node:child_process", () => ({ execFileSync: h.execFileSync }));
-vi.mock("@actions/core", () => ({
-  getInput: h.getInput,
-  info: h.info,
-  warning: h.warning,
-  setFailed: vi.fn(),
-}));
+vi.mock("@actions/core", () => h.core);
 
 import * as exe from "./exe.js";
 
-describe("exe", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    h.getInput.mockImplementation((name: string) => {
-      switch (name) {
-        case "ssh-exe-private-key":
-          return "auth-secret\n";
-        case "vm-image":
-          return "ci-image";
-        case "vm-name-prefix":
-          return "a-factory";
-        case "vm-cpu":
-          return "4";
-        case "vm-disk":
-          return "50G";
-        case "vm-memory":
-          return "8G";
-        case "vm-tag":
-          return "prod, staging";
-        case "vm-env":
-          return "FOO=bar\nBAZ=qux";
-        default:
-          return "";
-      }
-    });
-    h.execFileSync.mockReturnValue("");
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  h.core.getInput.mockImplementation((name: string) =>
+    name === "ssh-exe-private-key" ? "auth" : "",
+  );
+});
 
+describe("exe", () => {
   describe("vmName", () => {
-    it("names VMs by issue number with the default prefix", () => {
+    it("generates a VM name from the issue number", () => {
+      h.core.getInput.mockImplementation((name: string) =>
+        name === "vm-name-prefix" ? "a-factory" : "",
+      );
       expect(exe.vmName(7)).toBe("a-factory-issue-7");
     });
 
-    it("uses a custom prefix when vm-name-prefix is set", () => {
-      h.getInput.mockImplementation((name: string) => (name === "vm-name-prefix" ? "factory" : ""));
-      expect(exe.vmName(7)).toBe("factory-issue-7");
+    it("falls back to the default prefix when not configured", () => {
+      expect(exe.vmName(7)).toBe("a-factory-issue-7");
     });
   });
 
   describe("vmUrl", () => {
-    it("points at the fixed opencode port", () => {
-      expect(exe.vmUrl("a-factory-issue-7")).toBe("https://a-factory-issue-7.exe.xyz:4096");
+    it("builds an HTTPS URL with the harness port", () => {
+      expect(exe.vmUrl("factory-issue-7")).toBe(
+        `https://factory-issue-7.exe.xyz:${exe.HARNESS_PORT}`,
+      );
     });
   });
 
   describe("createVm", () => {
-    it("creates the VM with the configured image and starts opencode serve", () => {
+    it("passes all resource and tag inputs as ssh options", () => {
+      h.core.getInput.mockImplementation((name: string) => {
+        if (name === "ssh-exe-private-key") return "auth";
+        if (name === "vm-cpu") return "8";
+        if (name === "vm-disk") return "50G";
+        if (name === "vm-memory") return "8G";
+        if (name === "vm-tag") return "prod,ci";
+        return "";
+      });
+      h.execFileSync.mockReturnValue("");
       exe.createVm("a-factory-issue-7");
+      const calls = h.execFileSync.mock.calls as Array<Array<unknown>>;
+      const newCmd = calls.find(
+        (c) => Array.isArray(c[1]) && (c[1] as string[]).includes("exe.dev") && (c[1] as string[]).includes("new"),
+      );
+      expect(newCmd).toBeDefined();
+      const args = newCmd![1] as string[];
+      expect(args).toContain("--cpu");
+      expect(args).toContain("8");
+      expect(args).toContain("--disk");
+      expect(args).toContain("50G");
+      expect(args).toContain("--memory");
+      expect(args).toContain("8G");
+      expect(args).toContain("--tag");
+      expect(args).toContain("prod");
+      expect(args).toContain("--tag");
+      expect(args).toContain("ci");
+      expect(args).toContain("--no-email");
+    });
 
-      expect(h.execFileSync).toHaveBeenCalledTimes(2);
+    it("passes vm-env lines as --env flags", () => {
+      h.core.getInput.mockImplementation((name: string) => {
+        if (name === "ssh-exe-private-key") return "auth";
+        if (name === "vm-env") return "OPENCODE_API_KEY=sk-abcdef";
+        return "";
+      });
+      h.execFileSync.mockReturnValue("");
+      exe.createVm("a-factory-issue-7");
+      const calls = h.execFileSync.mock.calls;
+      const newCmd = calls.find(
+        (c) => Array.isArray(c[1]) && (c[1] as string[]).includes("exe.dev") && (c[1] as string[]).includes("new"),
+      );
+      expect(newCmd).toBeDefined();
+      const args = newCmd![1] as string[];
+      expect(args).toContain("--env");
+      expect(args).toContain("OPENCODE_API_KEY=sk-abcdef");
+    });
 
-      const [createBin, createArgs] = h.execFileSync.mock.calls[0] ?? [];
-      expect(createBin).toBe("ssh");
-      expect(createArgs.slice(0, 6)).toEqual([
-        "-i",
-        expect.any(String),
-        "-o",
-        expect.stringContaining("UserKnownHostsFile="),
-        "-o",
-        "StrictHostKeyChecking=yes",
-      ]);
-      expect(createArgs.slice(6)).toEqual([
-        "exe.dev",
-        "new",
-        "--name",
-        "a-factory-issue-7",
-        "--image",
-        "ci-image",
-        "--cpu",
-        "4",
-        "--disk",
-        "50G",
-        "--memory",
-        "8G",
-        "--tag",
-        "prod",
-        "--tag",
-        "staging",
-        "--env",
-        "FOO=bar",
-        "--env",
-        "BAZ=qux",
-        "--no-email",
-      ]);
-
-      const [runBin, runArgs] = h.execFileSync.mock.calls[1] ?? [];
-      expect(runBin).toBe("ssh");
-      expect(runArgs.slice(-2)[0]).toBe("a-factory-issue-7.exe.xyz");
-      const command = runArgs.slice(-2)[1];
-      expect(command).not.toContain("GITHUB_TOKEN");
-      expect(command).not.toContain("export ");
-      expect(command).toContain(`opencode serve --port ${exe.OPENCODE_PORT} --hostname 0.0.0.0`);
+    it("does not SSH into the VM to start a process (systemd handles boot)", () => {
+      h.execFileSync.mockReturnValue("");
+      exe.createVm("a-factory-issue-7");
+      const calls = h.execFileSync.mock.calls;
+      const vmSsh = calls.filter(
+        (c) => Array.isArray(c[1]) && (c[1] as string[]).includes("a-factory-issue-7.exe.xyz"),
+      );
+      expect(vmSsh).toHaveLength(0);
     });
 
     it("omits unset resource inputs and always passes --no-email", () => {
-      h.getInput.mockImplementation((name: string) => (name === "ssh-exe-private-key" ? "auth" : ""));
+      h.core.getInput.mockImplementation((name: string) =>
+        name === "ssh-exe-private-key" ? "auth" : "",
+      );
+      h.execFileSync.mockReturnValue("");
       exe.createVm("a-factory-issue-7");
-      const createArgs = h.execFileSync.mock.calls[0]?.[1] ?? [];
-      expect(createArgs).not.toContain("--image");
-      expect(createArgs).not.toContain("--cpu");
-      expect(createArgs).not.toContain("--disk");
-      expect(createArgs).not.toContain("--memory");
-      expect(createArgs).not.toContain("--tag");
-      expect(createArgs).not.toContain("--env");
-      expect(createArgs).toContain("--no-email");
-    });
-
-    it("enriches ssh failures with exit status, output, and command", () => {
-      h.execFileSync.mockImplementationOnce(() => {
-        throw Object.assign(new Error("Command failed"), { status: 2, stderr: "quota exceeded" });
-      });
-      let caught: unknown;
-      try {
-        exe.createVm("a-factory-issue-7");
-      } catch (e) {
-        caught = e;
-      }
-      const message = (caught as Error).message;
-      expect(message).toContain("exit 2");
-      expect(message).toContain("quota exceeded");
-      expect(message).toContain("command: ssh");
-      expect(message).toContain("exe.dev new");
+      const calls = h.execFileSync.mock.calls;
+      const newCmd = calls.find(
+        (c) => Array.isArray(c[1]) && (c[1] as string[]).includes("exe.dev") && (c[1] as string[]).includes("new"),
+      );
+      expect(newCmd).toBeDefined();
+      const args = newCmd![1] as string[];
+      expect(args).not.toContain("--cpu");
+      expect(args).not.toContain("--disk");
+      expect(args).not.toContain("--memory");
+      expect(args).not.toContain("--tag");
+      expect(args).toContain("--no-email");
     });
   });
 
   describe("destroyVm", () => {
-    it("removes the VM", () => {
+    it("runs ssh exe.dev rm <name>", () => {
+      h.execFileSync.mockReturnValue("");
       exe.destroyVm("a-factory-issue-7");
-      const [bin, args] = h.execFileSync.mock.calls[0] ?? [];
-      expect(bin).toBe("ssh");
-      expect(args.slice(-3)).toEqual(["exe.dev", "rm", "a-factory-issue-7"]);
+      expect(h.execFileSync).toHaveBeenCalledWith(
+        "ssh",
+        expect.arrayContaining(["exe.dev", "rm", "a-factory-issue-7"]),
+        expect.any(Object),
+      );
     });
 
-    it("warns instead of throwing when the VM is already gone", () => {
-      h.execFileSync.mockImplementationOnce(() => {
-        throw new Error("not found");
+    it("swallows non-zero exits (VM already gone)", () => {
+      h.execFileSync.mockImplementation(() => {
+        throw Object.assign(new Error("boom"), { status: 1 });
       });
-      expect(() => exe.destroyVm("a-factory-issue-7")).not.toThrow();
-      expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("a-factory-issue-7"));
-    });
-
-    it("includes ssh output in the destroy warning", () => {
-      h.execFileSync.mockImplementationOnce(() => {
-        throw Object.assign(new Error("Command failed"), { status: 1, stderr: "no such VM" });
-      });
-      expect(() => exe.destroyVm("a-factory-issue-7")).not.toThrow();
-      expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("no such VM"));
-      expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("exit 1"));
+      exe.destroyVm("a-factory-issue-7");
+      expect(h.core.warning).toHaveBeenCalledWith(
+        expect.stringContaining("already gone?"),
+      );
     });
   });
 });

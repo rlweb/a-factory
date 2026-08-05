@@ -3,18 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => {
   const issues = {
     createComment: vi.fn(),
-    listComments: vi.fn(),
     addLabels: vi.fn(),
     removeLabel: vi.fn(),
     get: vi.fn(),
   };
-  const pulls = { create: vi.fn() };
-  const repos = { get: vi.fn() };
-  const octokit = { rest: { issues, pulls, repos } };
+  const octokit = { rest: { issues } };
   const getOctokit = vi.fn(() => octokit);
   const getInput = vi.fn();
   const context = { repo: { owner: "acme", repo: "widgets" } };
-  return { issues, pulls, repos, octokit, getOctokit, getInput, context };
+  return { issues, octokit, getOctokit, getInput, context };
 });
 
 vi.mock("@actions/core", () => ({
@@ -30,60 +27,21 @@ vi.mock("@actions/github", () => ({
 
 import * as gh from "./github.js";
 
-function markerBody(vm: string, sessionId: string): string {
-  const encoded = Buffer.from(JSON.stringify({ vm, sessionId })).toString("base64");
-  return `${gh.BOT_MARKER_PREFIX}${encoded} -->`;
-}
-
 describe("github", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("isBotComment", () => {
-    it("detects comments carrying a session marker", () => {
-      expect(gh.isBotComment(markerBody("factory-issue-1", "s1"))).toBe(true);
-      expect(gh.isBotComment("a real human question")).toBe(false);
-      expect(gh.isBotComment("")).toBe(false);
-    });
-  });
-
-  describe("botComment", () => {
-    it("appends an embedded session marker to the body", async () => {
+  describe("comment", () => {
+    it("creates a comment on the issue", async () => {
       h.issues.createComment.mockResolvedValue({ data: {} });
-      await gh.botComment(7, "### Questions", { vm: "factory-issue-7", sessionId: "sess-1" });
-      const body = (h.issues.createComment.mock.calls[0]?.[0] as { body: string }).body;
-      expect(body).toContain("### Questions");
-      expect(body).toContain(gh.BOT_MARKER_PREFIX);
-      expect(body.trimEnd().endsWith("-->")).toBe(true);
-    });
-  });
-
-  describe("latestMarker", () => {
-    it("returns the most recent valid marker", async () => {
-      h.issues.listComments.mockResolvedValue({
-        data: [
-          { body: "first reply, no marker" },
-          { body: markerBody("factory-issue-1", "old") },
-          { body: markerBody("factory-issue-1", "new") },
-        ],
+      await gh.comment(7, "a message");
+      expect(h.issues.createComment).toHaveBeenCalledWith({
+        owner: "acme",
+        repo: "widgets",
+        issue_number: 7,
+        body: "a message",
       });
-      await expect(gh.latestMarker(1)).resolves.toEqual({
-        vm: "factory-issue-1",
-        sessionId: "new",
-      });
-    });
-
-    it("returns null when no comment carries a marker", async () => {
-      h.issues.listComments.mockResolvedValue({ data: [{ body: "hi" }, { body: "there" }] });
-      await expect(gh.latestMarker(1)).resolves.toBeNull();
-    });
-
-    it("ignores malformed markers", async () => {
-      h.issues.listComments.mockResolvedValue({
-        data: [{ body: `<!-- a-factory-session:${Buffer.from("not-json").toString("base64")} -->` }],
-      });
-      await expect(gh.latestMarker(1)).resolves.toBeNull();
     });
   });
 
@@ -135,23 +93,6 @@ describe("github", () => {
     it("handles string-typed labels", async () => {
       h.issues.get.mockResolvedValue({ data: { labels: ["awaiting-answer"] } });
       await expect(gh.hasLabel(7, "awaiting-answer")).resolves.toBe(true);
-    });
-  });
-
-  describe("openPullRequest", () => {
-    it("creates a PR and returns its number", async () => {
-      h.pulls.create.mockResolvedValue({ data: { number: 42 } });
-      await expect(
-        gh.openPullRequest("factory/issue-7", "main", "Fix it", "Closes #7"),
-      ).resolves.toEqual({ number: 42 });
-      expect(h.pulls.create).toHaveBeenCalledWith({
-        owner: "acme",
-        repo: "widgets",
-        head: "factory/issue-7",
-        base: "main",
-        title: "Fix it",
-        body: "Closes #7",
-      });
     });
   });
 });
