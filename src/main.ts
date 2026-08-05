@@ -36,7 +36,7 @@ const outcomeSchema = {
   required: ["status"],
 };
 
-function implementPrompt(issueNumber: number, title: string, body: string): string {
+export function implementPrompt(issueNumber: number, title: string, body: string): string {
   const branch = `factory/issue-${issueNumber}`;
   return `You are implementing a GitHub issue end to end, working directly in this VM.
 
@@ -55,7 +55,7 @@ When finished (or blocked), report status "done" (with a suggested PR title/summ
 "question" (with your questions).`;
 }
 
-function continuePrompt(reply: string): string {
+export function continuePrompt(reply: string): string {
   return `The user replied on the issue:
 
 ${reply}
@@ -65,7 +65,7 @@ PR title/summary) or "question" (with your questions).`;
 }
 
 /** Polls until the VM's opencode server answers, or throws after the budget is spent. */
-async function waitForServer(baseUrl: string, timeoutMs = 180_000, intervalMs = 5_000): Promise<void> {
+export async function waitForServer(baseUrl: string, timeoutMs = 180_000, intervalMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
@@ -78,7 +78,7 @@ async function waitForServer(baseUrl: string, timeoutMs = 180_000, intervalMs = 
   }
 }
 
-async function handleOutcome(issueNumber: number, vm: string, sessionId: string, outcome: Outcome): Promise<void> {
+export async function handleOutcome(issueNumber: number, vm: string, sessionId: string, outcome: Outcome): Promise<void> {
   if (outcome.status === "question") {
     const body = [
       "### Questions",
@@ -106,7 +106,7 @@ async function handleOutcome(issueNumber: number, vm: string, sessionId: string,
   exe.destroyVm(vm);
 }
 
-async function onOpen(issueNumber: number): Promise<void> {
+export async function onOpen(issueNumber: number): Promise<void> {
   const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber });
   const vm = exe.vmName(issueNumber);
 
@@ -128,7 +128,7 @@ async function onOpen(issueNumber: number): Promise<void> {
   await handleOutcome(issueNumber, vm, sessionId, outcome);
 }
 
-async function onComment(issueNumber: number, commentBody: string): Promise<void> {
+export async function onComment(issueNumber: number, commentBody: string): Promise<void> {
   if (!(await hasLabel(issueNumber, LABEL_AWAITING_ANSWER))) return;
   if (isBotComment(commentBody)) return; // never re-trigger on our own comments
 
@@ -144,11 +144,11 @@ async function onComment(issueNumber: number, commentBody: string): Promise<void
   await handleOutcome(issueNumber, marker.vm, marker.sessionId, outcome);
 }
 
-async function onClose(issueNumber: number): Promise<void> {
+export async function onClose(issueNumber: number): Promise<void> {
   exe.destroyVm(exe.vmName(issueNumber));
 }
 
-async function run(): Promise<void> {
+export async function run(): Promise<void> {
   const ctx = github.context;
   if (ctx.eventName === "issues") {
     const issueNumber = ctx.payload.issue?.number;

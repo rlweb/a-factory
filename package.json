@@ -18,7 +18,9 @@
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=esm --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --outfile=dist/index.js",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm run typecheck && pnpm run build"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^22.20.1",
     "esbuild": "^0.24.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }

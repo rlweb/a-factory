@@ -1,7 +1,7 @@
 import { createOpencodeClient } from "@opencode-ai/sdk";
 import * as core from "@actions/core";
 
-type Client = ReturnType<typeof createOpencodeClient>;
+export type Client = ReturnType<typeof createOpencodeClient>;
 
 export function connect(baseUrl: string): Client {
   return createOpencodeClient({ baseUrl });
