@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { PiHarness, type Outcome } from "./harness.js";
+import { PiHarness } from "./harness.js";
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -43,28 +43,36 @@ export function createHarnessServer(harness: PiHarness, port: number): void {
           json(res, 400, { error: "owner, repo, issueNumber required" });
           return;
         }
-        try {
-          const outcome = await harness.run(body);
-          json(res, 200, outcome);
-        } catch (e) {
-          json(res, 500, {
-            error: "run failed",
-            detail: e instanceof Error ? e.message : String(e),
-          });
+
+        if (harness.state === "done" || harness.state === "failed") {
+          json(res, 409, { error: "task already finished", state: harness.state });
+          return;
         }
+        if (harness.isActive()) {
+          json(res, 200, { status: "started", alreadyRunning: true });
+          return;
+        }
+
+        // Non-blocking: start the task in the background and return immediately. Status is
+        // polled via GET /; questions and PRs surface as GitHub comments.
+        harness.run(body).catch((e) => {
+          console.error("harness run failed:", e instanceof Error ? e.message : String(e));
+        });
+        json(res, 200, { status: "started", issueNumber: body.issueNumber });
         return;
       }
 
       if (req.method === "POST" && req.url === "/issue/comment") {
-        try {
-          const outcome = await harness.answer();
-          json(res, 200, outcome);
-        } catch (e) {
-          json(res, 500, {
-            error: "answer failed",
-            detail: e instanceof Error ? e.message : String(e),
-          });
+        if (harness.state !== "question") {
+          json(res, 409, { error: "not awaiting an answer", state: harness.state });
+          return;
         }
+
+        // Non-blocking resume: feed the latest human comment to the agent in the background.
+        harness.answer().catch((e) => {
+          console.error("harness resume failed:", e instanceof Error ? e.message : String(e));
+        });
+        json(res, 200, { status: "started" });
         return;
       }
 

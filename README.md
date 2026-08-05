@@ -54,10 +54,10 @@ jobs:
 
 ## How it works
 
-- **Issue opened** — creates an exe.dev VM with `ISSUE_NUMBER` and `GITHUB_REPOSITORY` env
-  vars, then returns immediately (fire-and-forget — the Action never waits). The VM image
-  boots pi-harness as a systemd service; the harness sees the env vars, fetches the issue via
-  GitHub API, clones the repo, and runs a pi session autonomously:
+- **Issue opened** — creates an exe.dev VM and waits for pi-harness to come up (`/health`),
+  then POSTs `{owner, repo, issueNumber}` to start the task. `POST /` returns
+  `{status:"started"}` immediately — the Action never blocks on the agent. The harness runs
+  autonomously:
   - If it can build, the harness runs `VERIFY_COMMAND` (default `pnpm run verify`), pushes
     the branch, and creates a PR via GitHub API with `Closes #<n>` in the body.
   - If blocked, the harness posts clarifying questions as a comment on the issue and adds the
@@ -83,10 +83,15 @@ The custom VM image extends [exeuntu](https://github.com/boldsoftware/exeuntu) w
 ```
 pi-harness.service
   ├─ Listens on port 4096
-  ├─ GET  /             — session state snapshot
-  ├─ POST /             — start a task (dev/manual use; auto-start uses env vars)
-  └─ POST /issue/comment — resume from a question (blocks until next question or done)
+  ├─ GET  /              — session state snapshot (status + streamed messages + questions)
+  ├─ GET  /health        — liveness check
+  ├─ POST /              — start a task; returns {status:"started"} immediately
+  └─ POST /issue/comment — resume from a question; returns {status:"started"} immediately
 ```
+
+Both POST endpoints are non-blocking — the harness works in the background. Questions and
+PRs surface as GitHub comments; `GET /` shows live status when needed. A `TASK_TIMEOUT_MS`
+env var (default unset) fails a stuck task instead of running forever.
 
 See `Dockerfile` and `pkg/pi-harness/` for the service definition and source.
 

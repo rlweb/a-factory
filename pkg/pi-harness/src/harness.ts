@@ -1,7 +1,10 @@
-import { execSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const execFileAsync = promisify(execFile);
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -11,7 +14,7 @@ import {
   SettingsManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import { opencodeExtension } from "./opencode-provider.js";
+import { registerOpencodeProvider } from "./opencode-provider.js";
 import {
   createAskQuestionsTool,
   answerQuestion,
@@ -75,20 +78,32 @@ export class PiHarness {
   private runPromise: Promise<Outcome> | null = null;
   private runResolve: ((o: Outcome) => void) | null = null;
   private subscribed = false;
+  private taskStarted = false;
 
   constructor(workingDir?: string) {
     this.workingDir = workingDir ?? mkdtempSync(join(tmpdir(), "pi-harness-"));
     this.repoDir = join(this.workingDir, "repo");
   }
 
+  /** True while a task is being worked (including the init/clone window where state is
+   *  still "idle"). A second POST / while active is an idempotent no-op, not a restart. */
+  isActive(): boolean {
+    return this.taskStarted || this.state === "running" || this.state === "question";
+  }
+
+  private log(msg: string): void {
+    console.log(`[${new Date().toISOString()}] ${msg}`);
+  }
+
   async init(): Promise<void> {
     const modelRuntime = await ModelRuntime.create();
     this.modelRuntime = modelRuntime;
 
+    registerOpencodeProvider(this.modelRuntime);
+
     const loader = new DefaultResourceLoader({
       cwd: this.workingDir,
       agentDir: getAgentDir(),
-      extensionFactories: [opencodeExtension],
       systemPromptOverride: () => SYSTEM_PROMPT,
     });
     await loader.reload();
@@ -123,26 +138,30 @@ export class PiHarness {
   }
 
   async run(payload: PlanPayload): Promise<Outcome> {
-    if (this.state !== "idle") {
-      throw new Error(`Cannot run: state is ${this.state}`);
+    if (this.taskStarted) {
+      throw new Error("task already started");
     }
-
+    if (this.state === "done" || this.state === "failed") {
+      throw new Error(`task already finished: ${this.state}`);
+    }
+    this.taskStarted = true;
     this.payload = payload;
 
-    await this.init();
-    await this.cloneRepo(payload);
+    try {
+      await this.init();
+      await this.cloneRepo(payload);
 
-    this.state = "running";
-    this.subscribeToEvents();
+      this.state = "running";
+      this.subscribeToEvents();
 
-    const issue = await this.fetchIssue(payload);
-    const branch = `factory/issue-${payload.issueNumber}`;
+      const issue = await this.fetchIssue(payload);
+      const branch = `factory/issue-${payload.issueNumber}`;
 
-    const prompt = `${
-      issue.title
-        ? `Implement this GitHub issue:\n\n### Issue #${payload.issueNumber}: ${issue.title}\n\n${issue.body ?? ""}`
-        : issue.body ?? "Implement the changes described in the issue."
-    }
+      const prompt = `${
+        issue.title
+          ? `Implement this GitHub issue:\n\n### Issue #${payload.issueNumber}: ${issue.title}\n\n${issue.body ?? ""}`
+          : issue.body ?? "Implement the changes described in the issue."
+      }
 
 Steps:
 1. Checkout branch "${branch}" if not already on it
@@ -153,18 +172,25 @@ Steps:
 
 Call ask_questions only if genuinely blocked.`;
 
-    this.session!.prompt(prompt).catch((e) => {
-      console.error("prompt error:", e instanceof Error ? e.message : String(e));
-      if (this.state === "running") {
-        this.finish();
-      }
-    });
+      // Assign the resolver BEFORE launching the agent so a fast settle can never find it
+      // null and leave the run promise hanging.
+      this.runPromise = new Promise<Outcome>((resolve) => {
+        this.runResolve = resolve;
+      });
+      this.startTimeout();
 
-    this.runPromise = new Promise<Outcome>((resolve) => {
-      this.runResolve = resolve;
-    });
+      this.session!.prompt(prompt).catch((e) => {
+        console.error("prompt error:", e instanceof Error ? e.message : String(e));
+        if (this.state === "running") {
+          void this.finish();
+        }
+      });
 
-    return this.runPromise;
+      return this.runPromise;
+    } catch (e) {
+      this.taskStarted = false;
+      throw e;
+    }
   }
 
   async answer(): Promise<Outcome> {
@@ -183,6 +209,37 @@ Call ask_questions only if genuinely blocked.`;
     });
 
     return this.runPromise;
+  }
+
+  /** Arms a watchdog that fails the task if the agent stays busy past TASK_TIMEOUT_MS.
+   *  Does not apply while awaiting a human answer (state "question") — that wait is
+   *  legitimately unbounded. */
+  private startTimeout(): void {
+    const timeoutMs = parseInt(process.env.TASK_TIMEOUT_MS ?? "", 10);
+    if (!timeoutMs || timeoutMs <= 0) return;
+
+    setTimeout(() => {
+      if (this.state !== "running") return;
+      this.log(`task timed out after ${timeoutMs}ms`);
+      if (this.payload) {
+        void this.postComment(
+          this.payload,
+          `### Timed out\n\nThe task exceeded the ${timeoutMs}ms timeout.`,
+        );
+        void this.removeLabel(this.payload);
+      }
+      this.state = "failed";
+      if (this.runResolve) {
+        const r = this.runResolve;
+        this.runResolve = null;
+        r({
+          status: "failed",
+          branch: this.branchName(),
+          verify: `timed out after ${timeoutMs}ms`,
+          messages: [...this.sessionMessages],
+        });
+      }
+    }, timeoutMs).unref();
   }
 
   getStatus(): {
@@ -210,6 +267,25 @@ Call ask_questions only if genuinely blocked.`;
     this.subscribed = true;
 
     this.session.subscribe((event) => {
+      if (event.type === "agent_start") {
+        this.log("agent started");
+      }
+
+      if (event.type === "turn_end") {
+        this.log("turn ended");
+      }
+
+      if (event.type === "tool_execution_start") {
+        const args = event.args
+          ? JSON.stringify(event.args).slice(0, 300)
+          : "";
+        this.log(`tool ${event.toolName}${args ? ` ${args}` : ""}`);
+      }
+
+      if (event.type === "tool_execution_end") {
+        this.log(`tool ${event.toolName} done${event.isError ? " (ERROR)" : ""}`);
+      }
+
       if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
         const last = this.sessionMessages.at(-1);
         if (last && last.role === "assistant") {
@@ -238,7 +314,7 @@ Call ask_questions only if genuinely blocked.`;
 
       if (event.type === "agent_settled") {
         if (this.state === "running" && this.runResolve) {
-          this.finish();
+          void this.finish();
         }
       }
     });
@@ -253,12 +329,13 @@ Call ask_questions only if genuinely blocked.`;
     let verifyPassed = false;
 
     try {
-      verify = execSync(verifyCmd, {
+      const [file, ...args] = verifyCmd.split(/\s+/).filter(Boolean);
+      const { stdout } = await execFileAsync(file, args, {
         cwd: this.repoDir,
-        stdio: "pipe",
-        encoding: "utf8",
         timeout: 120_000,
+        maxBuffer: 10 * 1024 * 1024,
       });
+      verify = stdout;
       verifyPassed = true;
     } catch (e) {
       const err = e as { stdout?: string; stderr?: string; message?: string };
@@ -273,7 +350,7 @@ Call ask_questions only if genuinely blocked.`;
     if (verifyPassed) {
       try {
         const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-        const defaultBranch = this.getDefaultBranch(p);
+        const defaultBranch = await this.getDefaultBranch(p);
         const title = `factory: issue #${p.issueNumber}`;
         const res = await fetch(
           `https://api.github.com/repos/${p.owner}/${p.repo}/pulls`,
@@ -351,13 +428,14 @@ Call ask_questions only if genuinely blocked.`;
     }
   }
 
-  private getDefaultBranch(payload: PlanPayload): string {
+  private async getDefaultBranch(payload: PlanPayload): Promise<string> {
     try {
-      const out = execSync(
-        `git -C "${this.repoDir}" rev-parse --abbrev-ref HEAD`,
-        { encoding: "utf8" },
-      ).trim();
-      return out || "main";
+      const { stdout } = await execFileAsync(
+        "git",
+        ["-C", this.repoDir, "rev-parse", "--abbrev-ref", "HEAD"],
+        { timeout: 10_000 },
+      );
+      return stdout.trim() || "main";
     } catch {
       return "main";
     }
@@ -368,13 +446,13 @@ Call ask_questions only if genuinely blocked.`;
     if (!existsSync(this.repoDir)) {
       mkdirSync(this.repoDir, { recursive: true });
     }
+    this.log(`cloning ${repoUrl}`);
     this.sessionMessages.push({
       role: "system",
       content: `Cloning ${repoUrl} into ${this.repoDir}`,
     });
-    execSync(`git clone --depth 1 "${repoUrl}" "${this.repoDir}"`, {
-      stdio: "pipe",
-      encoding: "utf8",
+    await execFileAsync("git", ["clone", "--depth", "1", repoUrl, this.repoDir], {
+      timeout: 180_000,
     });
   }
 

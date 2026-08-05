@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
     repo: "widgets",
     LABEL_AWAITING_ANSWER: "awaiting-answer",
   };
-  const harness = { resumeSession: vi.fn() };
+  const harness = { resumeSession: vi.fn(), startSession: vi.fn(), waitForServer: vi.fn() };
   const core = { getInput: vi.fn(), setFailed: vi.fn(), info: vi.fn(), warning: vi.fn() };
   return { context, exe, gh, harness, core };
 });
@@ -41,13 +41,20 @@ beforeEach(() => {
 });
 
 describe("onOpen", () => {
-  it("creates the VM with issue env vars and returns without waiting", async () => {
+  it("creates the VM, waits for the harness, and POSTs to start the session", async () => {
+    h.harness.waitForServer.mockReturnValue(undefined);
+    h.harness.startSession.mockReturnValue({ status: "started" });
+
     await onOpen(7);
 
-    expect(h.exe.createVm).toHaveBeenCalledWith("factory-issue-7", [
-      "ISSUE_NUMBER=7",
-      "GITHUB_REPOSITORY=acme/widgets",
-    ]);
+    expect(h.exe.createVm).toHaveBeenCalledWith("factory-issue-7");
+    expect(h.harness.waitForServer).toHaveBeenCalledWith("factory-issue-7");
+    expect(h.harness.startSession).toHaveBeenCalledWith(
+      "factory-issue-7",
+      "acme",
+      "widgets",
+      7,
+    );
     expect(h.exe.destroyVm).not.toHaveBeenCalled();
     expect(h.harness.resumeSession).not.toHaveBeenCalled();
   });

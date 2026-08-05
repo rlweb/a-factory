@@ -23994,6 +23994,25 @@ async function hasLabel(issueNumber, label) {
 }
 
 // src/pi-harness.ts
+function waitForServer(vm, timeoutMs = 18e4, intervalMs = 5e3) {
+  const deadline = Date.now() + timeoutMs;
+  for (; ; ) {
+    try {
+      sshExec(vm, `curl -s http://localhost:${HARNESS_PORT}/health`);
+      return;
+    } catch {
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`harness on ${vm} never came up (${timeoutMs}ms budget)`);
+    }
+  }
+}
+function startSession(vm, owner2, repo2, issueNumber) {
+  const body = JSON.stringify({ owner: owner2, repo: repo2, issueNumber }).replace(/'/g, "'\\''");
+  const cmd = `curl -s -X POST http://localhost:${HARNESS_PORT}/ -H 'Content-Type: application/json' -d '${body}'`;
+  const out = sshExec(vm, cmd);
+  return JSON.parse(out);
+}
 function resumeSession(vm) {
   const cmd = `nohup curl -s -X POST http://localhost:${HARNESS_PORT}/issue/comment >/dev/null 2>&1 &`;
   sshExec(vm, cmd);
@@ -24002,8 +24021,12 @@ function resumeSession(vm) {
 // src/main.ts
 async function onOpen(issueNumber) {
   const vm = vmName(issueNumber);
-  createVm(vm, [`ISSUE_NUMBER=${issueNumber}`, `GITHUB_REPOSITORY=${owner}/${repo}`]);
-  core3.info(`issue #${issueNumber}: VM ${vm} created, harness will run autonomously`);
+  createVm(vm);
+  waitForServer(vm);
+  const started = startSession(vm, owner, repo, issueNumber);
+  core3.info(
+    `issue #${issueNumber}: harness on ${vm} started ${JSON.stringify(started)}`
+  );
 }
 async function onComment(issueNumber) {
   if (!await hasLabel(issueNumber, LABEL_AWAITING_ANSWER)) return;

@@ -9,12 +9,17 @@ import {
   removeLabel,
   repo,
 } from "./github.js";
-import { resumeSession } from "./pi-harness.js";
+import { resumeSession, startSession, waitForServer } from "./pi-harness.js";
 
 export async function onOpen(issueNumber: number): Promise<void> {
   const vm = exe.vmName(issueNumber);
-  exe.createVm(vm, [`ISSUE_NUMBER=${issueNumber}`, `GITHUB_REPOSITORY=${owner}/${repo}`]);
-  core.info(`issue #${issueNumber}: VM ${vm} created, harness will run autonomously`);
+  exe.createVm(vm);
+
+  waitForServer(vm);
+  const started = startSession(vm, owner, repo, issueNumber);
+  core.info(
+    `issue #${issueNumber}: harness on ${vm} started ${JSON.stringify(started)}`,
+  );
 }
 
 export async function onComment(issueNumber: number): Promise<void> {

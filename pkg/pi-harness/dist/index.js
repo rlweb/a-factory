@@ -6,7 +6,8 @@ var __export = (target, all) => {
 };
 
 // src/harness.ts
-import { execSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,46 +21,43 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 // src/opencode-provider.ts
+var PROVIDER_ID = "oc-sdk-go";
 var GO_URL = "https://opencode.ai/zen/go/v1";
-var opencodeExtension = {
-  name: "opencode-provider",
-  factory: (pi) => {
-    const apiKey = process.env.OPENCODE_API_KEY;
-    if (!apiKey) return;
-    pi.registerProvider("oc-sdk-go", {
-      apiKey,
-      api: "openai-completions",
-      baseUrl: GO_URL,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      models: [
-        {
-          id: "deepseek-v4-pro",
-          name: "DeepSeek v4 Pro",
-          api: "openai-completions",
-          baseUrl: GO_URL,
-          contextWindow: 204800,
-          maxTokens: 131072,
-          reasoning: false,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          input: ["text"]
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        },
-        {
-          id: "deepseek-v4-flash",
-          name: "DeepSeek v4 Flash",
-          api: "openai-completions",
-          baseUrl: GO_URL,
-          contextWindow: 204800,
-          maxTokens: 131072,
-          reasoning: false,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          input: ["text"]
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        }
-      ]
-    });
+function registerOpencodeProvider(modelRuntime) {
+  const apiKey = process.env.OPENCODE_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENCODE_API_KEY is not set \u2014 cannot register the oc-sdk-go provider");
   }
-};
+  modelRuntime.registerProvider(PROVIDER_ID, {
+    apiKey,
+    api: "openai-completions",
+    baseUrl: GO_URL,
+    models: [
+      {
+        id: "deepseek-v4-pro",
+        name: "DeepSeek v4 Pro",
+        api: "openai-completions",
+        baseUrl: GO_URL,
+        contextWindow: 204800,
+        maxTokens: 131072,
+        reasoning: false,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        input: ["text"]
+      },
+      {
+        id: "deepseek-v4-flash",
+        name: "DeepSeek v4 Flash",
+        api: "openai-completions",
+        baseUrl: GO_URL,
+        contextWindow: 204800,
+        maxTokens: 131072,
+        reasoning: false,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        input: ["text"]
+      }
+    ]
+  });
+}
 
 // src/tools/ask-questions.ts
 import { defineTool } from "@earendil-works/pi-coding-agent";
@@ -2795,6 +2793,7 @@ User answer: ${answer}`
 }
 
 // src/harness.ts
+var execFileAsync = promisify(execFile);
 var DEFAULT_MODEL = "deepseek-v4-pro";
 var DEFAULT_VERIFY = "pnpm run verify";
 function ghHeaders2(token) {
@@ -2829,17 +2828,26 @@ var PiHarness = class {
   runPromise = null;
   runResolve = null;
   subscribed = false;
+  taskStarted = false;
   constructor(workingDir) {
     this.workingDir = workingDir ?? mkdtempSync(join(tmpdir(), "pi-harness-"));
     this.repoDir = join(this.workingDir, "repo");
   }
+  /** True while a task is being worked (including the init/clone window where state is
+   *  still "idle"). A second POST / while active is an idempotent no-op, not a restart. */
+  isActive() {
+    return this.taskStarted || this.state === "running" || this.state === "question";
+  }
+  log(msg) {
+    console.log(`[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}`);
+  }
   async init() {
     const modelRuntime = await ModelRuntime.create();
     this.modelRuntime = modelRuntime;
+    registerOpencodeProvider(this.modelRuntime);
     const loader = new DefaultResourceLoader({
       cwd: this.workingDir,
       agentDir: getAgentDir(),
-      extensionFactories: [opencodeExtension],
       systemPromptOverride: () => SYSTEM_PROMPT
     });
     await loader.reload();
@@ -2868,17 +2876,22 @@ var PiHarness = class {
     this.session = session;
   }
   async run(payload) {
-    if (this.state !== "idle") {
-      throw new Error(`Cannot run: state is ${this.state}`);
+    if (this.taskStarted) {
+      throw new Error("task already started");
     }
+    if (this.state === "done" || this.state === "failed") {
+      throw new Error(`task already finished: ${this.state}`);
+    }
+    this.taskStarted = true;
     this.payload = payload;
-    await this.init();
-    await this.cloneRepo(payload);
-    this.state = "running";
-    this.subscribeToEvents();
-    const issue = await this.fetchIssue(payload);
-    const branch = `factory/issue-${payload.issueNumber}`;
-    const prompt = `${issue.title ? `Implement this GitHub issue:
+    try {
+      await this.init();
+      await this.cloneRepo(payload);
+      this.state = "running";
+      this.subscribeToEvents();
+      const issue = await this.fetchIssue(payload);
+      const branch = `factory/issue-${payload.issueNumber}`;
+      const prompt = `${issue.title ? `Implement this GitHub issue:
 
 ### Issue #${payload.issueNumber}: ${issue.title}
 
@@ -2892,16 +2905,21 @@ Steps:
 5. Report DONE with a suggested PR title and summary
 
 Call ask_questions only if genuinely blocked.`;
-    this.session.prompt(prompt).catch((e) => {
-      console.error("prompt error:", e instanceof Error ? e.message : String(e));
-      if (this.state === "running") {
-        this.finish();
-      }
-    });
-    this.runPromise = new Promise((resolve) => {
-      this.runResolve = resolve;
-    });
-    return this.runPromise;
+      this.runPromise = new Promise((resolve) => {
+        this.runResolve = resolve;
+      });
+      this.startTimeout();
+      this.session.prompt(prompt).catch((e) => {
+        console.error("prompt error:", e instanceof Error ? e.message : String(e));
+        if (this.state === "running") {
+          void this.finish();
+        }
+      });
+      return this.runPromise;
+    } catch (e) {
+      this.taskStarted = false;
+      throw e;
+    }
   }
   async answer() {
     if (this.state !== "question") {
@@ -2915,6 +2933,37 @@ Call ask_questions only if genuinely blocked.`;
       this.runResolve = resolve;
     });
     return this.runPromise;
+  }
+  /** Arms a watchdog that fails the task if the agent stays busy past TASK_TIMEOUT_MS.
+   *  Does not apply while awaiting a human answer (state "question") — that wait is
+   *  legitimately unbounded. */
+  startTimeout() {
+    const timeoutMs = parseInt(process.env.TASK_TIMEOUT_MS ?? "", 10);
+    if (!timeoutMs || timeoutMs <= 0) return;
+    setTimeout(() => {
+      if (this.state !== "running") return;
+      this.log(`task timed out after ${timeoutMs}ms`);
+      if (this.payload) {
+        void this.postComment(
+          this.payload,
+          `### Timed out
+
+The task exceeded the ${timeoutMs}ms timeout.`
+        );
+        void this.removeLabel(this.payload);
+      }
+      this.state = "failed";
+      if (this.runResolve) {
+        const r = this.runResolve;
+        this.runResolve = null;
+        r({
+          status: "failed",
+          branch: this.branchName(),
+          verify: `timed out after ${timeoutMs}ms`,
+          messages: [...this.sessionMessages]
+        });
+      }
+    }, timeoutMs).unref();
   }
   getStatus() {
     return {
@@ -2933,6 +2982,19 @@ Call ask_questions only if genuinely blocked.`;
     if (this.subscribed || !this.session) return;
     this.subscribed = true;
     this.session.subscribe((event) => {
+      if (event.type === "agent_start") {
+        this.log("agent started");
+      }
+      if (event.type === "turn_end") {
+        this.log("turn ended");
+      }
+      if (event.type === "tool_execution_start") {
+        const args = event.args ? JSON.stringify(event.args).slice(0, 300) : "";
+        this.log(`tool ${event.toolName}${args ? ` ${args}` : ""}`);
+      }
+      if (event.type === "tool_execution_end") {
+        this.log(`tool ${event.toolName} done${event.isError ? " (ERROR)" : ""}`);
+      }
       if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
         const last = this.sessionMessages.at(-1);
         if (last && last.role === "assistant") {
@@ -2959,7 +3021,7 @@ Call ask_questions only if genuinely blocked.`;
       }
       if (event.type === "agent_settled") {
         if (this.state === "running" && this.runResolve) {
-          this.finish();
+          void this.finish();
         }
       }
     });
@@ -2971,12 +3033,13 @@ Call ask_questions only if genuinely blocked.`;
     let verify = "";
     let verifyPassed = false;
     try {
-      verify = execSync(verifyCmd, {
+      const [file, ...args] = verifyCmd.split(/\s+/).filter(Boolean);
+      const { stdout } = await execFileAsync(file, args, {
         cwd: this.repoDir,
-        stdio: "pipe",
-        encoding: "utf8",
-        timeout: 12e4
+        timeout: 12e4,
+        maxBuffer: 10 * 1024 * 1024
       });
+      verify = stdout;
       verifyPassed = true;
     } catch (e) {
       const err = e;
@@ -2988,7 +3051,7 @@ Call ask_questions only if genuinely blocked.`;
     if (verifyPassed) {
       try {
         const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-        const defaultBranch = this.getDefaultBranch(p);
+        const defaultBranch = await this.getDefaultBranch(p);
         const title = `factory: issue #${p.issueNumber}`;
         const res = await fetch(
           `https://api.github.com/repos/${p.owner}/${p.repo}/pulls`,
@@ -3056,13 +3119,14 @@ Call ask_questions only if genuinely blocked.`;
     } catch {
     }
   }
-  getDefaultBranch(payload) {
+  async getDefaultBranch(payload) {
     try {
-      const out = execSync(
-        `git -C "${this.repoDir}" rev-parse --abbrev-ref HEAD`,
-        { encoding: "utf8" }
-      ).trim();
-      return out || "main";
+      const { stdout } = await execFileAsync(
+        "git",
+        ["-C", this.repoDir, "rev-parse", "--abbrev-ref", "HEAD"],
+        { timeout: 1e4 }
+      );
+      return stdout.trim() || "main";
     } catch {
       return "main";
     }
@@ -3072,13 +3136,13 @@ Call ask_questions only if genuinely blocked.`;
     if (!existsSync(this.repoDir)) {
       mkdirSync(this.repoDir, { recursive: true });
     }
+    this.log(`cloning ${repoUrl}`);
     this.sessionMessages.push({
       role: "system",
       content: `Cloning ${repoUrl} into ${this.repoDir}`
     });
-    execSync(`git clone --depth 1 "${repoUrl}" "${this.repoDir}"`, {
-      stdio: "pipe",
-      encoding: "utf8"
+    await execFileAsync("git", ["clone", "--depth", "1", repoUrl, this.repoDir], {
+      timeout: 18e4
     });
   }
   async fetchIssue(payload) {
@@ -3156,27 +3220,29 @@ function createHarnessServer(harness, port) {
           json(res, 400, { error: "owner, repo, issueNumber required" });
           return;
         }
-        try {
-          const outcome = await harness.run(body);
-          json(res, 200, outcome);
-        } catch (e) {
-          json(res, 500, {
-            error: "run failed",
-            detail: e instanceof Error ? e.message : String(e)
-          });
+        if (harness.state === "done" || harness.state === "failed") {
+          json(res, 409, { error: "task already finished", state: harness.state });
+          return;
         }
+        if (harness.isActive()) {
+          json(res, 200, { status: "started", alreadyRunning: true });
+          return;
+        }
+        harness.run(body).catch((e) => {
+          console.error("harness run failed:", e instanceof Error ? e.message : String(e));
+        });
+        json(res, 200, { status: "started", issueNumber: body.issueNumber });
         return;
       }
       if (req.method === "POST" && req.url === "/issue/comment") {
-        try {
-          const outcome = await harness.answer();
-          json(res, 200, outcome);
-        } catch (e) {
-          json(res, 500, {
-            error: "answer failed",
-            detail: e instanceof Error ? e.message : String(e)
-          });
+        if (harness.state !== "question") {
+          json(res, 409, { error: "not awaiting an answer", state: harness.state });
+          return;
         }
+        harness.answer().catch((e) => {
+          console.error("harness resume failed:", e instanceof Error ? e.message : String(e));
+        });
+        json(res, 200, { status: "started" });
         return;
       }
       json(res, 404, { error: "not found" });
@@ -3205,18 +3271,13 @@ function createHarnessServer(harness, port) {
 // src/index.ts
 var PORT = parseInt(process.env.PORT ?? "4096", 10);
 async function main() {
+  if (!process.env.OPENCODE_API_KEY) {
+    console.error("Fatal: OPENCODE_API_KEY is not set \u2014 cannot register the oc-sdk-go provider");
+    process.exit(1);
+  }
   const harness = new PiHarness();
   createHarnessServer(harness, PORT);
   console.log(`pi-harness v0.1.0 ready (GET http://0.0.0.0:${PORT}/)`);
-  const issueNumber = parseInt(process.env.ISSUE_NUMBER ?? "", 10);
-  const repoEnv = process.env.GITHUB_REPOSITORY ?? "";
-  if (issueNumber > 0 && repoEnv.includes("/")) {
-    const [owner, repo] = repoEnv.split("/");
-    console.log(`pi-harness: auto-starting on issue #${issueNumber} (${owner}/${repo})`);
-    harness.run({ owner, repo, issueNumber }).catch((e) => {
-      console.error("harness run failed:", e instanceof Error ? e.message : String(e));
-    });
-  }
 }
 main().catch((e) => {
   console.error("Fatal:", e instanceof Error ? e.message : String(e));
