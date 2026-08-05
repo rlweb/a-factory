@@ -13052,7 +13052,7 @@ var require_fetch = __commonJS({
         this.emit("terminated", error);
       }
     };
-    function fetch2(input, init = {}) {
+    function fetch(input, init = {}) {
       webidl.argumentLengthCheck(arguments, 1, { header: "globalThis.fetch" });
       const p = createDeferredPromise();
       let requestObject;
@@ -13982,7 +13982,7 @@ var require_fetch = __commonJS({
       }
     }
     module.exports = {
-      fetch: fetch2,
+      fetch,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -17238,7 +17238,7 @@ var require_undici = __commonJS({
     module.exports.getGlobalDispatcher = getGlobalDispatcher;
     if (util.nodeMajor > 16 || util.nodeMajor === 16 && util.nodeMinor >= 8) {
       let fetchImpl = null;
-      module.exports.fetch = async function fetch2(resource) {
+      module.exports.fetch = async function fetch(resource) {
         if (!fetchImpl) {
           fetchImpl = require_fetch().fetch;
         }
@@ -20714,16 +20714,16 @@ var require_dist_node5 = __commonJS({
       let headers = {};
       let status;
       let url;
-      let { fetch: fetch2 } = globalThis;
+      let { fetch } = globalThis;
       if ((_b = requestOptions.request) == null ? void 0 : _b.fetch) {
-        fetch2 = requestOptions.request.fetch;
+        fetch = requestOptions.request.fetch;
       }
-      if (!fetch2) {
+      if (!fetch) {
         throw new Error(
           "fetch is not set. Please pass a fetch implementation as new Octokit({ request: { fetch }}). Learn more at https://github.com/octokit/octokit.js/#fetch-missing"
         );
       }
-      return fetch2(requestOptions.url, {
+      return fetch(requestOptions.url, {
         method: requestOptions.method,
         body: requestOptions.body,
         redirect: (_c = requestOptions.request) == null ? void 0 : _c.redirect,
@@ -23933,8 +23933,8 @@ function vmName(issueNumber) {
   const prefix = core.getInput("vm-name-prefix") || "a-factory";
   return `${prefix}-issue-${issueNumber}`;
 }
-function vmUrl(name) {
-  return `https://${name}.exe.xyz:${HARNESS_PORT}`;
+function sshExec(vmName2, command) {
+  return ssh([`${vmName2}.exe.xyz`, command]);
 }
 function createVm(name) {
   const image = core.getInput("vm-image");
@@ -23994,28 +23994,30 @@ async function hasLabel(issueNumber, label) {
 }
 
 // src/pi-harness.ts
-async function startSession(url, owner2, repo2, issueNumber) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ owner: owner2, repo: repo2, issueNumber })
-  });
-  return await res.json();
+function curl(vm, method, path, body) {
+  let cmd = `curl -s -X ${method} http://localhost:${HARNESS_PORT}${path}`;
+  if (body !== void 0) {
+    const json = JSON.stringify(body).replace(/'/g, "'\\''");
+    cmd += ` -H 'Content-Type: application/json' -d '${json}'`;
+  }
+  const out = sshExec(vm, cmd);
+  return JSON.parse(out);
 }
-async function resumeSession(url) {
-  const res = await fetch(`${url}/issue/comment`, { method: "POST" });
-  return await res.json();
+function startSession(vm, owner2, repo2, issueNumber) {
+  return curl(vm, "POST", "/", { owner: owner2, repo: repo2, issueNumber });
 }
-async function waitForServer(baseUrl, timeoutMs = 18e4, intervalMs = 5e3) {
+function resumeSession(vm) {
+  return curl(vm, "POST", "/issue/comment");
+}
+function waitForServer(vm, timeoutMs = 18e4, intervalMs = 5e3) {
   const deadline = Date.now() + timeoutMs;
   for (; ; ) {
     try {
-      const res = await fetch(`${baseUrl}/health`);
-      if (res.ok) return;
+      sshExec(vm, `curl -s http://localhost:${HARNESS_PORT}/health`);
+      return;
     } catch {
     }
-    if (Date.now() > deadline) throw new Error(`harness at ${baseUrl} never came up`);
-    await new Promise((r) => setTimeout(r, intervalMs));
+    if (Date.now() > deadline) throw new Error(`harness on ${vm} never came up`);
   }
 }
 
@@ -24052,22 +24054,20 @@ async function handleOutcome(issueNumber, vm, outcome) {
 async function onOpen(issueNumber) {
   const vm = vmName(issueNumber);
   createVm(vm);
-  const url = vmUrl(vm);
-  await waitForServer(url);
-  const outcome = await startSession(url, owner, repo, issueNumber);
+  waitForServer(vm);
+  const outcome = startSession(vm, owner, repo, issueNumber);
   await handleOutcome(issueNumber, vm, outcome);
 }
 async function onComment(issueNumber) {
   if (!await hasLabel(issueNumber, LABEL_AWAITING_ANSWER)) return;
   const vm = vmName(issueNumber);
-  const url = vmUrl(vm);
   await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
   let outcome;
   try {
-    outcome = await resumeSession(url);
+    outcome = resumeSession(vm);
   } catch (e) {
     core3.warning(
-      `issue #${issueNumber}: could not reach harness at ${url}: ${String(e)}`
+      `issue #${issueNumber}: could not reach harness on ${vm}: ${String(e)}`
     );
     await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
     return;

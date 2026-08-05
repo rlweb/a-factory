@@ -66,6 +66,12 @@ export function vmUrl(name: string): string {
   return `https://${name}.exe.xyz:${HARNESS_PORT}`;
 }
 
+/** Runs a command on the VM via SSH and returns stdout. Throws if SSH or the remote
+ *  command exits non-zero. */
+export function sshExec(vmName: string, command: string): string {
+  return ssh([`${vmName}.exe.xyz`, command]);
+}
+
 /** Creates a VM. pi-harness starts automatically via systemd — no SSH bootstrap needed.
  *  VM-level env vars come from vm-env input (e.g. OPENCODE_API_KEY).
  *  GitHub access is handled by exe.dev's GitHub integration. */

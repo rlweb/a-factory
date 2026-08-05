@@ -144,4 +144,26 @@ describe("exe", () => {
       );
     });
   });
+
+  describe("sshExec", () => {
+    it("runs a command on the VM via SSH and returns stdout", () => {
+      h.execFileSync.mockReturnValue('{"status":"done"}');
+      const out = exe.sshExec("factory-issue-7", "curl localhost:4096/");
+      expect(out).toBe('{"status":"done"}');
+      expect(h.execFileSync).toHaveBeenCalledWith(
+        "ssh",
+        expect.arrayContaining(["factory-issue-7.exe.xyz", "curl localhost:4096/"]),
+        expect.any(Object),
+      );
+    });
+
+    it("throws when the remote command exits non-zero", () => {
+      h.execFileSync.mockImplementation(() => {
+        throw Object.assign(new Error("command failed"), { status: 1, stderr: "curl: (7) Failed to connect" });
+      });
+      expect(() => exe.sshExec("factory-issue-7", "curl localhost:4096/")).toThrow(
+        /ssh failed/,
+      );
+    });
+  });
 });

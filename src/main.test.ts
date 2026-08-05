@@ -4,11 +4,9 @@ const h = vi.hoisted(() => {
   const context = { eventName: "", payload: {} as Record<string, unknown> };
   const exe = {
     vmName: vi.fn(),
-    vmUrl: vi.fn(),
     createVm: vi.fn(),
     destroyVm: vi.fn(),
   };
-  const issues = { createComment: vi.fn(), addLabels: vi.fn(), removeLabel: vi.fn(), get: vi.fn() };
   const gh = {
     addLabel: vi.fn(),
     comment: vi.fn(),
@@ -39,7 +37,6 @@ function setEvent(eventName: string, payload: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   setEvent("", {});
-  h.exe.vmUrl.mockReturnValue("https://factory-issue-7.exe.xyz:4096");
   h.exe.vmName.mockReturnValue("factory-issue-7");
   h.core.getInput.mockReturnValue("token");
 });
@@ -78,15 +75,15 @@ describe("handleOutcome", () => {
 
 describe("onOpen", () => {
   it("creates VM, waits for harness, starts session, handles outcome", async () => {
-    h.harness.waitForServer.mockResolvedValue(undefined);
-    h.harness.startSession.mockResolvedValue({ status: "done", prUrl: "https://..." });
+    h.harness.waitForServer.mockReturnValue(undefined);
+    h.harness.startSession.mockReturnValue({ status: "done", prUrl: "https://..." });
 
     await onOpen(7);
 
     expect(h.exe.createVm).toHaveBeenCalledWith("factory-issue-7");
-    expect(h.harness.waitForServer).toHaveBeenCalledWith("https://factory-issue-7.exe.xyz:4096");
+    expect(h.harness.waitForServer).toHaveBeenCalledWith("factory-issue-7");
     expect(h.harness.startSession).toHaveBeenCalledWith(
-      "https://factory-issue-7.exe.xyz:4096",
+      "factory-issue-7",
       "acme",
       "widgets",
       7,
@@ -99,14 +96,12 @@ describe("onOpen", () => {
 describe("onComment", () => {
   it("resumes the session when the issue is awaiting an answer", async () => {
     h.gh.hasLabel.mockResolvedValue(true);
-    h.harness.resumeSession.mockResolvedValue({ status: "done", prUrl: "https://..." });
+    h.harness.resumeSession.mockReturnValue({ status: "done", prUrl: "https://..." });
 
     await onComment(7);
 
     expect(h.gh.removeLabel).toHaveBeenCalledWith(7, "awaiting-answer");
-    expect(h.harness.resumeSession).toHaveBeenCalledWith(
-      "https://factory-issue-7.exe.xyz:4096",
-    );
+    expect(h.harness.resumeSession).toHaveBeenCalledWith("factory-issue-7");
     expect(h.exe.destroyVm).toHaveBeenCalled();
   });
 
@@ -118,13 +113,15 @@ describe("onComment", () => {
 
   it("re-adds label and warns when harness is unreachable", async () => {
     h.gh.hasLabel.mockResolvedValue(true);
-    h.harness.resumeSession.mockRejectedValue(new Error("ECONNREFUSED"));
+    h.harness.resumeSession.mockImplementation(() => {
+      throw new Error("ECONNREFUSED");
+    });
 
     await onComment(7);
 
     expect(h.gh.addLabel).toHaveBeenCalledWith(7, "awaiting-answer");
     expect(h.core.warning).toHaveBeenCalled();
-    expect(h.harness.resumeSession).toHaveBeenCalled();
+    expect(h.harness.resumeSession).toHaveBeenCalledWith("factory-issue-7");
   });
 });
 
@@ -138,8 +135,8 @@ describe("onClose", () => {
 describe("run dispatch", () => {
   it("handles an issue opened event", async () => {
     setEvent("issues", { action: "opened", issue: { number: 7 } });
-    h.harness.waitForServer.mockResolvedValue(undefined);
-    h.harness.startSession.mockResolvedValue({ status: "done" });
+    h.harness.waitForServer.mockReturnValue(undefined);
+    h.harness.startSession.mockReturnValue({ status: "done" });
 
     await expect(import("./main.js").then((m) => m.run())).resolves.toBeUndefined();
     expect(h.exe.createVm).toHaveBeenCalled();

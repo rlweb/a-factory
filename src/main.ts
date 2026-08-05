@@ -52,10 +52,9 @@ export async function onOpen(issueNumber: number): Promise<void> {
   const vm = exe.vmName(issueNumber);
   exe.createVm(vm);
 
-  const url = exe.vmUrl(vm);
-  await waitForServer(url);
+  waitForServer(vm);
 
-  const outcome = await startSession(url, owner, repo, issueNumber);
+  const outcome = startSession(vm, owner, repo, issueNumber);
   await handleOutcome(issueNumber, vm, outcome);
 }
 
@@ -63,16 +62,15 @@ export async function onComment(issueNumber: number): Promise<void> {
   if (!(await hasLabel(issueNumber, LABEL_AWAITING_ANSWER))) return;
 
   const vm = exe.vmName(issueNumber);
-  const url = exe.vmUrl(vm);
 
   await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
 
   let outcome: HarnessOutcome;
   try {
-    outcome = await resumeSession(url);
+    outcome = resumeSession(vm);
   } catch (e) {
     core.warning(
-      `issue #${issueNumber}: could not reach harness at ${url}: ${String(e)}`,
+      `issue #${issueNumber}: could not reach harness on ${vm}: ${String(e)}`,
     );
     await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
     return;

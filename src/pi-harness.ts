@@ -1,3 +1,5 @@
+import { sshExec, HARNESS_PORT } from "./exe.js";
+
 export interface HarnessOutcome {
   status: "done" | "question" | "failed";
   branch?: string;
@@ -7,40 +9,34 @@ export interface HarnessOutcome {
   messages?: Array<{ role: string; content: string }>;
 }
 
-export async function startSession(
-  url: string,
-  owner: string,
-  repo: string,
-  issueNumber: number,
-): Promise<HarnessOutcome> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ owner, repo, issueNumber }),
-  });
-  return (await res.json()) as HarnessOutcome;
+function curl(vm: string, method: string, path: string, body?: unknown): HarnessOutcome {
+  let cmd = `curl -s -X ${method} http://localhost:${HARNESS_PORT}${path}`;
+  if (body !== undefined) {
+    const json = JSON.stringify(body).replace(/'/g, "'\\''");
+    cmd += ` -H 'Content-Type: application/json' -d '${json}'`;
+  }
+  const out = sshExec(vm, cmd);
+  return JSON.parse(out) as HarnessOutcome;
 }
 
-export async function resumeSession(url: string): Promise<HarnessOutcome> {
-  const res = await fetch(`${url}/issue/comment`, { method: "POST" });
-  return (await res.json()) as HarnessOutcome;
+export function startSession(vm: string, owner: string, repo: string, issueNumber: number): HarnessOutcome {
+  return curl(vm, "POST", "/", { owner, repo, issueNumber });
 }
 
-/** Polls until the VM's pi-harness server answers, or throws after the budget is spent. */
-export async function waitForServer(
-  baseUrl: string,
-  timeoutMs = 180_000,
-  intervalMs = 5_000,
-): Promise<void> {
+export function resumeSession(vm: string): HarnessOutcome {
+  return curl(vm, "POST", "/issue/comment");
+}
+
+/** Polls via SSH until the VM's pi-harness answers, or throws after the budget is spent. */
+export function waitForServer(vm: string, timeoutMs = 180_000, intervalMs = 5_000): void {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
-      const res = await fetch(`${baseUrl}/health`);
-      if (res.ok) return;
+      sshExec(vm, `curl -s http://localhost:${HARNESS_PORT}/health`);
+      return;
     } catch {
       // server not up yet
     }
-    if (Date.now() > deadline) throw new Error(`harness at ${baseUrl} never came up`);
-    await new Promise((r) => setTimeout(r, intervalMs));
+    if (Date.now() > deadline) throw new Error(`harness on ${vm} never came up`);
   }
 }
