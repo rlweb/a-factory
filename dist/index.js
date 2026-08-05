@@ -24435,8 +24435,6 @@ function createVm(name) {
     "new",
     "--name",
     name,
-    "--command",
-    "none",
     ...image ? ["--image", image] : [],
     ...cpu ? ["--cpu", cpu] : [],
     ...disk ? ["--disk", disk] : [],

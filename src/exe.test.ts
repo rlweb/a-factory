@@ -77,8 +77,6 @@ describe("exe", () => {
         "new",
         "--name",
         "a-factory-issue-7",
-        "--command",
-        "none",
         "--image",
         "ci-image",
         "--cpu",
