@@ -24513,7 +24513,7 @@ async function openPullRequest(branch, base, title, body) {
   return { number: pr.number };
 }
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/serverSentEvents.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/serverSentEvents.gen.js
 var createSseClient = ({ onSseError, onSseEvent, responseTransformer, responseValidator, sseDefaultRetryDelay, sseMaxRetryAttempts, sseMaxRetryDelay, sseSleepFn, url, ...options }) => {
   let lastEventId;
   const sleep = sseSleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -24619,7 +24619,7 @@ var createSseClient = ({ onSseError, onSseEvent, responseTransformer, responseVa
   return { stream };
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/auth.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/auth.gen.js
 var getAuthToken = async (auth, callback) => {
   const token2 = typeof callback === "function" ? await callback(auth) : callback;
   if (!token2) {
@@ -24634,12 +24634,12 @@ var getAuthToken = async (auth, callback) => {
   return token2;
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/bodySerializer.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/bodySerializer.gen.js
 var jsonBodySerializer = {
   bodySerializer: (body) => JSON.stringify(body, (_key, value) => typeof value === "bigint" ? value.toString() : value)
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/pathSerializer.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/pathSerializer.gen.js
 var separatorArrayExplode = (style) => {
   switch (style) {
     case "label":
@@ -24742,7 +24742,7 @@ var serializeObjectParam = ({ allowReserved, explode, name, style, value, valueO
   return style === "label" || style === "matrix" ? separator + joinedValues : joinedValues;
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/utils.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/utils.gen.js
 var PATH_PARAM_RE = /\{[^{}]+\}/g;
 var defaultPathSerializer = ({ path, url: _url }) => {
   let url = _url;
@@ -24810,7 +24810,7 @@ var getUrl = ({ baseUrl, path, query, querySerializer, url: _url }) => {
   return url;
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/client/utils.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/client/utils.gen.js
 var createQuerySerializer = ({ allowReserved, array, object } = {}) => {
   const querySerializer = (queryParams) => {
     const search = [];
@@ -25017,7 +25017,7 @@ var createConfig = (override = {}) => ({
   ...override
 });
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/client/client.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/client/client.gen.js
 var createClient = (config = {}) => {
   let _config = mergeConfigs(createConfig(), config);
   const getConfig = () => ({ ..._config });
@@ -25166,7 +25166,7 @@ var createClient = (config = {}) => {
   };
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/core/params.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/core/params.gen.js
 var extraPrefixesMap = {
   $body_: "body",
   $headers_: "headers",
@@ -25175,12 +25175,12 @@ var extraPrefixesMap = {
 };
 var extraPrefixes = Object.entries(extraPrefixesMap);
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/client.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/client.gen.js
 var client = createClient(createConfig({
   baseUrl: "http://localhost:4096"
 }));
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/gen/sdk.gen.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/gen/sdk.gen.js
 var _HeyApiClient = class {
   _client = client;
   constructor(args) {
@@ -26061,7 +26061,7 @@ var OpencodeClient = class extends _HeyApiClient {
   event = new Event2({ client: this._client });
 };
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/error-interceptor.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/error-interceptor.js
 function wrapClientError(error, response, request, opts) {
   if (!opts?.throwOnError)
     return error;
@@ -26088,7 +26088,7 @@ function describe(request, response) {
   return `${method} ${url}${status ? " \u2192 " + status : ""}${statusText ? " " + statusText : ""}`;
 }
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/client.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/client.js
 function pick(value, fallback) {
   if (!value)
     return;
@@ -26137,7 +26137,7 @@ function createOpencodeClient(config) {
   return new OpencodeClient({ client: client2 });
 }
 
-// node_modules/.pnpm/@opencode-ai+sdk@1.18.11/node_modules/@opencode-ai/sdk/dist/server.js
+// node_modules/.pnpm/@opencode-ai+sdk@1.18.12/node_modules/@opencode-ai/sdk/dist/server.js
 var import_cross_spawn = __toESM(require_cross_spawn(), 1);
 
 // src/opencode.ts
