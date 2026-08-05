@@ -24407,13 +24407,19 @@ function ssh(args) {
   return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
 }
 function vmName(issueNumber) {
-  return `factory-issue-${issueNumber}`;
+  const prefix = core.getInput("vm-name-prefix") || "a-factory";
+  return `${prefix}-issue-${issueNumber}`;
 }
 function vmUrl(name) {
   return `https://${name}.exe.xyz:${OPENCODE_PORT}`;
 }
 function createVm(name, env) {
   const image = core.getInput("vm-image");
+  const cpu = core.getInput("vm-cpu");
+  const disk = core.getInput("vm-disk");
+  const memory = core.getInput("vm-memory");
+  const tags = core.getInput("vm-tag").split(",").map((t) => t.trim()).filter(Boolean);
+  const vmEnv = core.getInput("vm-env").split("\n").map((l) => l.trim()).filter(Boolean);
   core.info(`exe: creating VM ${name}${image ? ` (image ${image})` : ""}`);
   ssh([
     "exe.dev",
@@ -24422,7 +24428,13 @@ function createVm(name, env) {
     name,
     "--command",
     "none",
-    ...image ? ["--image", image] : []
+    ...image ? ["--image", image] : [],
+    ...cpu ? ["--cpu", cpu] : [],
+    ...disk ? ["--disk", disk] : [],
+    ...memory ? ["--memory", memory] : [],
+    ...tags.flatMap((t) => ["--tag", t]),
+    ...vmEnv.flatMap((e) => ["--env", e]),
+    "--no-email"
   ]);
   const exportEnv = Object.entries(env).map(([k, v]) => `export ${k}=${JSON.stringify(v)};`).join(" ");
   ssh([

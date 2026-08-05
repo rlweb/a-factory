@@ -29,7 +29,8 @@ function ssh(args: string[]): string {
 }
 
 export function vmName(issueNumber: number): string {
-  return `factory-issue-${issueNumber}`;
+  const prefix = core.getInput("vm-name-prefix") || "a-factory";
+  return `${prefix}-issue-${issueNumber}`;
 }
 
 export function vmUrl(name: string): string {
@@ -42,6 +43,19 @@ export function vmUrl(name: string): string {
  * (git clone/push) can see it — e.g. GITHUB_TOKEN, OPENCODE_API_KEY. */
 export function createVm(name: string, env: Record<string, string>): void {
   const image = core.getInput("vm-image");
+  const cpu = core.getInput("vm-cpu");
+  const disk = core.getInput("vm-disk");
+  const memory = core.getInput("vm-memory");
+  const tags = core
+    .getInput("vm-tag")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const vmEnv = core
+    .getInput("vm-env")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   core.info(`exe: creating VM ${name}${image ? ` (image ${image})` : ""}`);
   ssh([
     "exe.dev",
@@ -51,6 +65,12 @@ export function createVm(name: string, env: Record<string, string>): void {
     "--command",
     "none",
     ...(image ? ["--image", image] : []),
+    ...(cpu ? ["--cpu", cpu] : []),
+    ...(disk ? ["--disk", disk] : []),
+    ...(memory ? ["--memory", memory] : []),
+    ...tags.flatMap((t) => ["--tag", t]),
+    ...vmEnv.flatMap((e) => ["--env", e]),
+    "--no-email",
   ]);
   const exportEnv = Object.entries(env)
     .map(([k, v]) => `export ${k}=${JSON.stringify(v)};`)

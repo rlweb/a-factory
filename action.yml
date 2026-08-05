@@ -15,6 +15,30 @@ inputs:
     description: Container image exe.dev VMs boot from.
     required: false
     default: ""
+  vm-name-prefix:
+    description: Prefix for exe.dev VM names. VMs are named <prefix>-issue-<number>.
+    required: false
+    default: a-factory
+  vm-cpu:
+    description: Number of CPUs for the VM.
+    required: false
+    default: "2"
+  vm-disk:
+    description: Disk size for the VM, e.g. "50G".
+    required: false
+    default: "4G"
+  vm-env:
+    description: Extra environment variables for the VM, one KEY=VALUE per line.
+    required: false
+    default: ""
+  vm-memory:
+    description: Memory allocation for the VM, e.g. "8G".
+    required: false
+    default: "4GB"
+  vm-tag:
+    description: Tags for the VM, comma-separated.
+    required: false
+    default: ""
   github-token:
     description: Token for commenting, labeling, and opening PRs. Defaults to the job's GITHUB_TOKEN.
     required: false
