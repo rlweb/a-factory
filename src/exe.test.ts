@@ -119,6 +119,23 @@ describe("exe", () => {
       expect(createArgs).not.toContain("--env");
       expect(createArgs).toContain("--no-email");
     });
+
+    it("enriches ssh failures with exit status, output, and command", () => {
+      h.execFileSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error("Command failed"), { status: 2, stderr: "quota exceeded" });
+      });
+      let caught: unknown;
+      try {
+        exe.createVm("a-factory-issue-7");
+      } catch (e) {
+        caught = e;
+      }
+      const message = (caught as Error).message;
+      expect(message).toContain("exit 2");
+      expect(message).toContain("quota exceeded");
+      expect(message).toContain("command: ssh");
+      expect(message).toContain("exe.dev new");
+    });
   });
 
   describe("destroyVm", () => {
@@ -135,6 +152,15 @@ describe("exe", () => {
       });
       expect(() => exe.destroyVm("a-factory-issue-7")).not.toThrow();
       expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("a-factory-issue-7"));
+    });
+
+    it("includes ssh output in the destroy warning", () => {
+      h.execFileSync.mockImplementationOnce(() => {
+        throw Object.assign(new Error("Command failed"), { status: 1, stderr: "no such VM" });
+      });
+      expect(() => exe.destroyVm("a-factory-issue-7")).not.toThrow();
+      expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("no such VM"));
+      expect(h.warning).toHaveBeenCalledWith(expect.stringContaining("exit 1"));
     });
   });
 });

@@ -25,7 +25,19 @@ function identity(): string[] {
 }
 
 function ssh(args: string[]): string {
-  return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
+  try {
+    return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    const out = [err.stdout, err.stderr]
+      .filter((s) => s && s.trim())
+      .map((s) => s!.trim())
+      .join("\n");
+    throw new Error(
+      `ssh failed (exit ${err.status ?? "unknown"}): ${out || String(err)}\n` +
+        `command: ssh ${args.join(" ")}`,
+    );
+  }
 }
 
 export function vmName(issueNumber: number): string {

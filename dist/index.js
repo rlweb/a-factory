@@ -24404,7 +24404,16 @@ function identity() {
   return ["-i", keyPath, "-o", "StrictHostKeyChecking=accept-new"];
 }
 function ssh(args) {
-  return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
+  try {
+    return execFileSync("ssh", [...identity(), ...args], { encoding: "utf8" });
+  } catch (e) {
+    const err = e;
+    const out = [err.stdout, err.stderr].filter((s) => s && s.trim()).map((s) => s.trim()).join("\n");
+    throw new Error(
+      `ssh failed (exit ${err.status ?? "unknown"}): ${out || String(err)}
+command: ssh ${args.join(" ")}`
+    );
+  }
 }
 function vmName(issueNumber) {
   const prefix = core.getInput("vm-name-prefix") || "a-factory";
