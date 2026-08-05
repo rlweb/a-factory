@@ -10,15 +10,15 @@ export const OPENCODE_PORT = 4096;
 
 let keyPath: string | undefined;
 
-/** Writes the exe-dev-auth input (an SSH private key) to disk once, for use as -i on every
- * `ssh exe.dev` call. exe.dev's non-interactive CI auth mechanism is unconfirmed — see the
- * plan's open items; this assumes a deploy-key-style credential. */
+/** Writes the ssh-exe-private-key input (an SSH private key) to disk once, for use as -i on
+ * every `ssh exe.dev` call. exe.dev's non-interactive CI auth mechanism is unconfirmed — see
+ * the plan's open items; this assumes a deploy-key-style credential. */
 function identity(): string[] {
   if (!keyPath) {
-    const auth = core.getInput("exe-dev-auth", { required: true });
+    const key = core.getInput("ssh-exe-private-key", { required: true });
     const dir = mkdtempSync(join(tmpdir(), "exe-dev-"));
     keyPath = join(dir, "id");
-    writeFileSync(keyPath, auth.endsWith("\n") ? auth : `${auth}\n`, { mode: 0o600 });
+    writeFileSync(keyPath, key.endsWith("\n") ? key : `${key}\n`, { mode: 0o600 });
     chmodSync(keyPath, 0o600);
   }
   return ["-i", keyPath, "-o", "StrictHostKeyChecking=accept-new"];

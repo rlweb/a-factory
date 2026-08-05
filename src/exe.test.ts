@@ -23,7 +23,7 @@ describe("exe", () => {
     vi.clearAllMocks();
     h.getInput.mockImplementation((name: string) => {
       switch (name) {
-        case "exe-dev-auth":
+        case "ssh-exe-private-key":
           return "auth-secret\n";
         case "vm-image":
           return "ci-image";
@@ -76,7 +76,7 @@ describe("exe", () => {
     });
 
     it("omits --image when no vm-image input is set", () => {
-      h.getInput.mockImplementation((name: string) => (name === "exe-dev-auth" ? "auth" : ""));
+      h.getInput.mockImplementation((name: string) => (name === "ssh-exe-private-key" ? "auth" : ""));
       exe.createVm("factory-issue-7", {});
       const createArgs = h.execFileSync.mock.calls[0]?.[1] ?? [];
       expect(createArgs).not.toContain("--image");

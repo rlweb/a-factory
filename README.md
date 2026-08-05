@@ -30,7 +30,7 @@ jobs:
       - uses: rlweb/a-factory@v1
         with:
           opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
-          exe-dev-auth: ${{ secrets.EXE_DEV_AUTH }}
+          ssh-exe-private-key: ${{ secrets.SSH_EXE_PRIVATE_KEY }}
 ```
 
 ### Inputs
@@ -38,7 +38,7 @@ jobs:
 | Input               | Required | Description                                              |
 | -------------------- | -------- | ---------------------------------------------------------- |
 | `opencode-api-key`    | yes      | Model provider API key opencode uses on the VM.             |
-| `exe-dev-auth`         | yes      | Credential exe.dev's CLI needs to create/manage VMs.          |
+| `ssh-exe-private-key`   | yes      | SSH private key for `ssh exe.dev` calls.                        |
 | `vm-image`              | no       | Custom VM image (defaults to this repo's own, see `Dockerfile`). |
 | `github-token`           | no       | Defaults to the job's `GITHUB_TOKEN`.                             |
 

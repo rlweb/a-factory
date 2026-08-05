@@ -8,8 +8,8 @@ inputs:
   opencode-api-key:
     description: API key for the model provider opencode uses.
     required: true
-  exe-dev-auth:
-    description: Credential exe.dev's CLI needs to create/manage VMs non-interactively.
+  ssh-exe-private-key:
+    description: SSH private key used to authenticate `ssh exe.dev` calls.
     required: true
   vm-image:
     description: Container image exe.dev VMs boot from.

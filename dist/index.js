@@ -24394,10 +24394,10 @@ var OPENCODE_PORT = 4096;
 var keyPath;
 function identity() {
   if (!keyPath) {
-    const auth = core.getInput("exe-dev-auth", { required: true });
+    const key = core.getInput("ssh-exe-private-key", { required: true });
     const dir = mkdtempSync(join(tmpdir(), "exe-dev-"));
     keyPath = join(dir, "id");
-    writeFileSync(keyPath, auth.endsWith("\n") ? auth : `${auth}
+    writeFileSync(keyPath, key.endsWith("\n") ? key : `${key}
 `, { mode: 384 });
     chmodSync(keyPath, 384);
   }
