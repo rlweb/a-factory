@@ -16,12 +16,22 @@ import {
   createAskQuestionsTool,
   answerQuestion,
   getPendingQuestions,
+  getLastPostedCommentId,
   cleanupBlock,
   type AskContext,
 } from "./tools/ask-questions.js";
 
 const DEFAULT_MODEL = "deepseek-v4-pro";
 const DEFAULT_VERIFY = "pnpm run verify";
+
+function ghHeaders(token: string | undefined): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token ?? ""}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+    "User-Agent": "pi-harness",
+  };
+}
 
 const SYSTEM_PROMPT = `You are a coding agent implementing GitHub issues. You operate in a repo
 checked out at ./repo/.
@@ -269,11 +279,7 @@ Call ask_questions only if genuinely blocked.`;
           `https://api.github.com/repos/${p.owner}/${p.repo}/pulls`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/vnd.github+json",
-              "Content-Type": "application/json",
-            },
+            headers: ghHeaders(token),
             body: JSON.stringify({
               title,
               head: branch,
@@ -287,7 +293,25 @@ Call ask_questions only if genuinely blocked.`;
       } catch {
         // best-effort
       }
+    } else {
+      await this.postComment(
+        p,
+        [
+          "### Verification failed",
+          "",
+          "The harness ran the verify command and it did not pass:",
+          "",
+          "```",
+          verify || "(no output)",
+          "```",
+          "",
+          `Branch: \`${branch}\``,
+        ].join("\n"),
+      );
     }
+
+    // No longer awaiting an answer — this is terminal (done or failed).
+    await this.removeLabel(p);
 
     const status = verifyPassed ? "done" as const : "failed" as const;
     this.state = status;
@@ -296,6 +320,34 @@ Call ask_questions only if genuinely blocked.`;
       const r = this.runResolve;
       this.runResolve = null;
       r({ status, branch, prUrl, verify, messages: [...this.sessionMessages] });
+    }
+  }
+
+  private async postComment(payload: PlanPayload, body: string): Promise<void> {
+    try {
+      const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      await fetch(
+        `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/comments`,
+        {
+          method: "POST",
+          headers: ghHeaders(token),
+          body: JSON.stringify({ body }),
+        },
+      );
+    } catch {
+      // best-effort
+    }
+  }
+
+  private async removeLabel(payload: PlanPayload): Promise<void> {
+    try {
+      const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      await fetch(
+        `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/labels/awaiting-answer`,
+        { method: "DELETE", headers: ghHeaders(token) },
+      );
+    } catch {
+      // best-effort (label may not exist)
     }
   }
 
@@ -351,15 +403,19 @@ Call ask_questions only if genuinely blocked.`;
       const commentsUrl = `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/comments?per_page=100`;
       const commentsRes = await fetch(commentsUrl, { headers });
       const comments = (await commentsRes.json()) as Array<{
+        id?: number;
         user?: { login?: string };
         body?: string;
       }>;
+      // Skip the harness's own question comments (tracked by id) and any bot noise, so a
+      // resume never mistakes the harness's own questions for a human answer.
+      const sinceId = getLastPostedCommentId();
       for (let i = comments.length - 1; i >= 0; i--) {
         const c = comments[i];
-        if (c.user?.login !== "github-actions[bot]") {
-          lastCommentBody = c.body ?? null;
-          break;
-        }
+        if (c.user?.login === "github-actions[bot]") continue;
+        if (sinceId !== null && (c.id ?? 0) <= sinceId) continue;
+        lastCommentBody = c.body ?? null;
+        break;
       }
     } catch {
       // best-effort

@@ -75,7 +75,7 @@ export function sshExec(vmName: string, command: string): string {
 /** Creates a VM. pi-harness starts automatically via systemd — no SSH bootstrap needed.
  *  VM-level env vars come from vm-env input (e.g. OPENCODE_API_KEY).
  *  GitHub access is handled by exe.dev's GitHub integration. */
-export function createVm(name: string): void {
+export function createVm(name: string, extraEnv: string[] = []): void {
   const image = core.getInput("vm-image");
   const cpu = core.getInput("vm-cpu");
   const disk = core.getInput("vm-disk");
@@ -85,11 +85,14 @@ export function createVm(name: string): void {
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean);
-  const vmEnv = core
-    .getInput("vm-env")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+  const vmEnv = [
+    ...core
+      .getInput("vm-env")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean),
+    ...extraEnv,
+  ];
   core.info(`exe: creating VM ${name}${image ? ` (image ${image})` : ""}`);
   ssh([
     "exe.dev",

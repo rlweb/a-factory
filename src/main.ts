@@ -3,59 +3,18 @@ import * as github from "@actions/github";
 import * as exe from "./exe.js";
 import {
   addLabel,
-  comment,
   hasLabel,
   LABEL_AWAITING_ANSWER,
   owner,
   removeLabel,
   repo,
 } from "./github.js";
-import { resumeSession, startSession, waitForServer, type HarnessOutcome } from "./pi-harness.js";
-
-export async function handleOutcome(
-  issueNumber: number,
-  vm: string,
-  outcome: HarnessOutcome,
-): Promise<void> {
-  if (outcome.status === "question") {
-    await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    core.info(`issue #${issueNumber}: awaiting human answer, VM ${vm} left running`);
-    return;
-  }
-
-  if (outcome.status === "failed") {
-    const body = [
-      "### Verification failed",
-      "",
-      "The harness ran the verify command and it did not pass:",
-      "",
-      "```",
-      outcome.verify ?? "(no output)",
-      "```",
-      "",
-      `Branch: \`${outcome.branch ?? `factory/issue-${issueNumber}`}\``,
-    ].join("\n");
-    await comment(issueNumber, body);
-    await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    exe.destroyVm(vm);
-    return;
-  }
-
-  core.info(
-    `issue #${issueNumber}: done, PR ${outcome.prUrl ?? "(unknown)"}`,
-  );
-  await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
-  exe.destroyVm(vm);
-}
+import { resumeSession } from "./pi-harness.js";
 
 export async function onOpen(issueNumber: number): Promise<void> {
   const vm = exe.vmName(issueNumber);
-  exe.createVm(vm);
-
-  waitForServer(vm);
-
-  const outcome = startSession(vm, owner, repo, issueNumber);
-  await handleOutcome(issueNumber, vm, outcome);
+  exe.createVm(vm, [`ISSUE_NUMBER=${issueNumber}`, `GITHUB_REPOSITORY=${owner}/${repo}`]);
+  core.info(`issue #${issueNumber}: VM ${vm} created, harness will run autonomously`);
 }
 
 export async function onComment(issueNumber: number): Promise<void> {
@@ -65,18 +24,12 @@ export async function onComment(issueNumber: number): Promise<void> {
 
   await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
 
-  let outcome: HarnessOutcome;
   try {
-    outcome = resumeSession(vm);
+    resumeSession(vm);
   } catch (e) {
-    core.warning(
-      `issue #${issueNumber}: could not reach harness on ${vm}: ${String(e)}`,
-    );
+    core.warning(`issue #${issueNumber}: could not resume harness on ${vm}: ${String(e)}`);
     await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    return;
   }
-
-  await handleOutcome(issueNumber, vm, outcome);
 }
 
 export async function onClose(issueNumber: number): Promise<void> {

@@ -23936,13 +23936,16 @@ function vmName(issueNumber) {
 function sshExec(vmName2, command) {
   return ssh([`${vmName2}.exe.xyz`, command]);
 }
-function createVm(name) {
+function createVm(name, extraEnv = []) {
   const image = core.getInput("vm-image");
   const cpu = core.getInput("vm-cpu");
   const disk = core.getInput("vm-disk");
   const memory = core.getInput("vm-memory");
   const tags = core.getInput("vm-tag").split(",").map((t) => t.trim()).filter(Boolean);
-  const vmEnv = core.getInput("vm-env").split("\n").map((l) => l.trim()).filter(Boolean);
+  const vmEnv = [
+    ...core.getInput("vm-env").split("\n").map((l) => l.trim()).filter(Boolean),
+    ...extraEnv
+  ];
   core.info(`exe: creating VM ${name}${image ? ` (image ${image})` : ""}`);
   ssh([
     "exe.dev",
@@ -23975,9 +23978,6 @@ var token = core2.getInput("github-token") || process.env.GITHUB_TOKEN || "";
 var octokit = github.getOctokit(token);
 var owner = github.context.repo.owner;
 var repo = github.context.repo.repo;
-async function comment(issueNumber, body) {
-  await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
-}
 async function addLabel(issueNumber, label) {
   await octokit.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [label] });
 }
@@ -23994,85 +23994,27 @@ async function hasLabel(issueNumber, label) {
 }
 
 // src/pi-harness.ts
-function curl(vm, method, path, body) {
-  let cmd = `curl -s -X ${method} http://localhost:${HARNESS_PORT}${path}`;
-  if (body !== void 0) {
-    const json = JSON.stringify(body).replace(/'/g, "'\\''");
-    cmd += ` -H 'Content-Type: application/json' -d '${json}'`;
-  }
-  const out = sshExec(vm, cmd);
-  return JSON.parse(out);
-}
-function startSession(vm, owner2, repo2, issueNumber) {
-  return curl(vm, "POST", "/", { owner: owner2, repo: repo2, issueNumber });
-}
 function resumeSession(vm) {
-  return curl(vm, "POST", "/issue/comment");
-}
-function waitForServer(vm, timeoutMs = 18e4, intervalMs = 5e3) {
-  const deadline = Date.now() + timeoutMs;
-  for (; ; ) {
-    try {
-      sshExec(vm, `curl -s http://localhost:${HARNESS_PORT}/health`);
-      return;
-    } catch {
-    }
-    if (Date.now() > deadline) throw new Error(`harness on ${vm} never came up`);
-  }
+  const cmd = `nohup curl -s -X POST http://localhost:${HARNESS_PORT}/issue/comment >/dev/null 2>&1 &`;
+  sshExec(vm, cmd);
 }
 
 // src/main.ts
-async function handleOutcome(issueNumber, vm, outcome) {
-  if (outcome.status === "question") {
-    await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    core3.info(`issue #${issueNumber}: awaiting human answer, VM ${vm} left running`);
-    return;
-  }
-  if (outcome.status === "failed") {
-    const body = [
-      "### Verification failed",
-      "",
-      "The harness ran the verify command and it did not pass:",
-      "",
-      "```",
-      outcome.verify ?? "(no output)",
-      "```",
-      "",
-      `Branch: \`${outcome.branch ?? `factory/issue-${issueNumber}`}\``
-    ].join("\n");
-    await comment(issueNumber, body);
-    await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    destroyVm(vm);
-    return;
-  }
-  core3.info(
-    `issue #${issueNumber}: done, PR ${outcome.prUrl ?? "(unknown)"}`
-  );
-  await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
-  destroyVm(vm);
-}
 async function onOpen(issueNumber) {
   const vm = vmName(issueNumber);
-  createVm(vm);
-  waitForServer(vm);
-  const outcome = startSession(vm, owner, repo, issueNumber);
-  await handleOutcome(issueNumber, vm, outcome);
+  createVm(vm, [`ISSUE_NUMBER=${issueNumber}`, `GITHUB_REPOSITORY=${owner}/${repo}`]);
+  core3.info(`issue #${issueNumber}: VM ${vm} created, harness will run autonomously`);
 }
 async function onComment(issueNumber) {
   if (!await hasLabel(issueNumber, LABEL_AWAITING_ANSWER)) return;
   const vm = vmName(issueNumber);
   await removeLabel(issueNumber, LABEL_AWAITING_ANSWER);
-  let outcome;
   try {
-    outcome = resumeSession(vm);
+    resumeSession(vm);
   } catch (e) {
-    core3.warning(
-      `issue #${issueNumber}: could not reach harness on ${vm}: ${String(e)}`
-    );
+    core3.warning(`issue #${issueNumber}: could not resume harness on ${vm}: ${String(e)}`);
     await addLabel(issueNumber, LABEL_AWAITING_ANSWER);
-    return;
   }
-  await handleOutcome(issueNumber, vm, outcome);
 }
 async function onClose(issueNumber) {
   destroyVm(vmName(issueNumber));
@@ -24097,7 +24039,6 @@ run().catch((e) => {
   core3.setFailed(e instanceof Error ? e.message : String(e));
 });
 export {
-  handleOutcome,
   onClose,
   onComment,
   onOpen,

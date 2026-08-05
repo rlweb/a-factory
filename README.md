@@ -54,18 +54,21 @@ jobs:
 
 ## How it works
 
-- **Issue opened** — creates an exe.dev VM. The VM image boots pi-harness automatically as a
-  systemd service. The Action waits for the harness to be ready, then POSTs the issue details
-  (`owner`, `repo`, `issueNumber`). The harness fetches the issue via GitHub API, clones the
-  repo, and starts a pi session:
-  - If it finishes, the harness runs `VERIFY_COMMAND` (default `pnpm run verify`), pushes the
-    branch, creates a PR via GitHub API, and reports done. The Action logs and destroys the VM.
-  - If blocked, the harness posts clarifying questions as a comment on the issue and reports
-    back. The Action adds the `awaiting-answer` label and exits, leaving the VM running.
-- **Issue comment** — if the issue has the `awaiting-answer` label, the Action calls the
-  harness with a wake-up signal. The harness fetches the latest human comment from the GitHub
-  API and feeds it to the agent, resuming the same session.
-- **Issue closed** — the VM for that issue is destroyed.
+- **Issue opened** — creates an exe.dev VM with `ISSUE_NUMBER` and `GITHUB_REPOSITORY` env
+  vars, then returns immediately (fire-and-forget — the Action never waits). The VM image
+  boots pi-harness as a systemd service; the harness sees the env vars, fetches the issue via
+  GitHub API, clones the repo, and runs a pi session autonomously:
+  - If it can build, the harness runs `VERIFY_COMMAND` (default `pnpm run verify`), pushes
+    the branch, and creates a PR via GitHub API with `Closes #<n>` in the body.
+  - If blocked, the harness posts clarifying questions as a comment on the issue and adds the
+    `awaiting-answer` label.
+- **Issue comment** — if the issue has the `awaiting-answer` label, the Action removes the
+  label and sends a fire-and-forget resume signal (detached `curl` inside the VM). The harness
+  fetches the latest human comment and feeds it to the agent, resuming the same session. It
+  re-adds the label if it needs more answers.
+- **Issue closed** — the VM for that issue is destroyed. Because PRs carry `Closes #<n>`,
+  merging a PR auto-closes the issue, which tears the VM down. VMs live as long as their
+  issue is open.
 
 ### VM image (Dockerfile)
 
@@ -81,8 +84,8 @@ The custom VM image extends [exeuntu](https://github.com/boldsoftware/exeuntu) w
 pi-harness.service
   ├─ Listens on port 4096
   ├─ GET  /             — session state snapshot
-  ├─ POST /             — start a task (blocks until question or done)
-  └─ POST /issue/comment — resume from a question (blocks until question or done)
+  ├─ POST /             — start a task (dev/manual use; auto-start uses env vars)
+  └─ POST /issue/comment — resume from a question (blocks until next question or done)
 ```
 
 See `Dockerfile` and `pkg/pi-harness/` for the service definition and source.

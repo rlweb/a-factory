@@ -93,6 +93,20 @@ describe("exe", () => {
       expect(args).toContain("OPENCODE_API_KEY=sk-abcdef");
     });
 
+    it("appends extraEnv vars passed by the caller", () => {
+      h.execFileSync.mockReturnValue("");
+      exe.createVm("a-factory-issue-7", ["ISSUE_NUMBER=7", "GITHUB_REPOSITORY=acme/widgets"]);
+      const calls = h.execFileSync.mock.calls;
+      const newCmd = calls.find(
+        (c) => Array.isArray(c[1]) && (c[1] as string[]).includes("exe.dev") && (c[1] as string[]).includes("new"),
+      );
+      expect(newCmd).toBeDefined();
+      const args = newCmd![1] as string[];
+      expect(args).toContain("--env");
+      expect(args).toContain("ISSUE_NUMBER=7");
+      expect(args).toContain("GITHUB_REPOSITORY=acme/widgets");
+    });
+
     it("does not SSH into the VM to start a process (systemd handles boot)", () => {
       h.execFileSync.mockReturnValue("");
       exe.createVm("a-factory-issue-7");

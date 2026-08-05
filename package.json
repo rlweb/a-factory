@@ -10,7 +10,7 @@
   },
   "version": "0.1.0",
   "private": true,
-  "description": "GitHub Action: an issue opens an exe.dev VM running opencode, seeded with the issue; questions on the issue resume the same session; finishes with a branch and PR.",
+  "description": "GitHub Action: an issue opens an exe.dev VM running the pi.dev harness, seeded with the issue; questions on the issue resume the same session; finishes with a branch and PR.",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -24,8 +24,7 @@
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1",
-    "@opencode-ai/sdk": "^1.18.12"
+    "@actions/github": "^6.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

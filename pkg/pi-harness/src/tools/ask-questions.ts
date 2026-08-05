@@ -17,9 +17,16 @@ export interface AskContext {
 
 let pendingResolve: ((answer: string) => void) | null = null;
 let pendingQuestions: string[] = [];
+let lastPostedCommentId: number | null = null;
 
 export function getPendingQuestions(): string[] {
   return pendingQuestions;
+}
+
+/** Comment id of the last question comment the harness itself posted. The harness uses
+ *  this to skip its own comments when looking for a human answer. */
+export function getLastPostedCommentId(): number | null {
+  return lastPostedCommentId;
 }
 
 export function answerQuestion(answer: string): void {
@@ -37,6 +44,14 @@ export function cleanupBlock(): void {
     pendingResolve = null;
     pendingQuestions = [];
   }
+}
+
+function ghHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+  };
 }
 
 function createAskQuestionsTool(ctx: AskContext) {
@@ -84,16 +99,13 @@ function createAskQuestionsTool(ctx: AskContext) {
           `https://api.github.com/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.issueNumber}/comments`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/vnd.github+json",
-              "Content-Type": "application/json",
-            },
+            headers: ghHeaders(token),
             body: JSON.stringify({ body }),
           },
         );
-        const data = (await res.json()) as { html_url?: string };
+        const data = (await res.json()) as { html_url?: string; id?: number };
         commentUrl = data.html_url ?? "(unknown)";
+        lastPostedCommentId = data.id ?? null;
       } catch (e) {
         return {
           content: [
@@ -104,6 +116,21 @@ function createAskQuestionsTool(ctx: AskContext) {
           ],
           details: { questions: params.questions, answer: null, error: String(e) },
         };
+      }
+
+      // Add label after posting so our own comment's webhook races past the Action's
+      // awaiting-answer check (avoids an immediate spurious resume).
+      try {
+        await fetch(
+          `https://api.github.com/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.issueNumber}/labels`,
+          {
+            method: "POST",
+            headers: ghHeaders(token),
+            body: JSON.stringify({ labels: ["awaiting-answer"] }),
+          },
+        );
+      } catch {
+        // best-effort — the comment is the source of truth for the human
       }
 
       pendingQuestions = params.questions;

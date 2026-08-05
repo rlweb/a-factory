@@ -2678,8 +2678,12 @@ var QuestionsParams = Type.Object({
 });
 var pendingResolve = null;
 var pendingQuestions = [];
+var lastPostedCommentId = null;
 function getPendingQuestions() {
   return pendingQuestions;
+}
+function getLastPostedCommentId() {
+  return lastPostedCommentId;
 }
 function answerQuestion(answer) {
   if (pendingResolve) {
@@ -2695,6 +2699,13 @@ function cleanupBlock() {
     pendingResolve = null;
     pendingQuestions = [];
   }
+}
+function ghHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json"
+  };
 }
 function createAskQuestionsTool(ctx) {
   return defineTool({
@@ -2731,16 +2742,13 @@ function createAskQuestionsTool(ctx) {
           `https://api.github.com/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.issueNumber}/comments`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/vnd.github+json",
-              "Content-Type": "application/json"
-            },
+            headers: ghHeaders(token),
             body: JSON.stringify({ body })
           }
         );
         const data = await res.json();
         commentUrl = data.html_url ?? "(unknown)";
+        lastPostedCommentId = data.id ?? null;
       } catch (e) {
         return {
           content: [
@@ -2751,6 +2759,17 @@ function createAskQuestionsTool(ctx) {
           ],
           details: { questions: params.questions, answer: null, error: String(e) }
         };
+      }
+      try {
+        await fetch(
+          `https://api.github.com/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.issueNumber}/labels`,
+          {
+            method: "POST",
+            headers: ghHeaders(token),
+            body: JSON.stringify({ labels: ["awaiting-answer"] })
+          }
+        );
+      } catch {
       }
       pendingQuestions = params.questions;
       const answer = await new Promise((resolve) => {
@@ -2778,6 +2797,14 @@ User answer: ${answer}`
 // src/harness.ts
 var DEFAULT_MODEL = "deepseek-v4-pro";
 var DEFAULT_VERIFY = "pnpm run verify";
+function ghHeaders2(token) {
+  return {
+    Authorization: `Bearer ${token ?? ""}`,
+    Accept: "application/vnd.github+json",
+    "Content-Type": "application/json",
+    "User-Agent": "pi-harness"
+  };
+}
 var SYSTEM_PROMPT = `You are a coding agent implementing GitHub issues. You operate in a repo
 checked out at ./repo/.
 
@@ -2967,11 +2994,7 @@ Call ask_questions only if genuinely blocked.`;
           `https://api.github.com/repos/${p.owner}/${p.repo}/pulls`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/vnd.github+json",
-              "Content-Type": "application/json"
-            },
+            headers: ghHeaders2(token),
             body: JSON.stringify({
               title,
               head: branch,
@@ -2984,13 +3007,53 @@ Call ask_questions only if genuinely blocked.`;
         prUrl = pr.html_url;
       } catch {
       }
+    } else {
+      await this.postComment(
+        p,
+        [
+          "### Verification failed",
+          "",
+          "The harness ran the verify command and it did not pass:",
+          "",
+          "```",
+          verify || "(no output)",
+          "```",
+          "",
+          `Branch: \`${branch}\``
+        ].join("\n")
+      );
     }
+    await this.removeLabel(p);
     const status = verifyPassed ? "done" : "failed";
     this.state = status;
     if (this.runResolve) {
       const r = this.runResolve;
       this.runResolve = null;
       r({ status, branch, prUrl, verify, messages: [...this.sessionMessages] });
+    }
+  }
+  async postComment(payload, body) {
+    try {
+      const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      await fetch(
+        `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/comments`,
+        {
+          method: "POST",
+          headers: ghHeaders2(token),
+          body: JSON.stringify({ body })
+        }
+      );
+    } catch {
+    }
+  }
+  async removeLabel(payload) {
+    try {
+      const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      await fetch(
+        `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/labels/awaiting-answer`,
+        { method: "DELETE", headers: ghHeaders2(token) }
+      );
+    } catch {
     }
   }
   getDefaultBranch(payload) {
@@ -3037,12 +3100,13 @@ Call ask_questions only if genuinely blocked.`;
       const commentsUrl = `https://api.github.com/repos/${payload.owner}/${payload.repo}/issues/${payload.issueNumber}/comments?per_page=100`;
       const commentsRes = await fetch(commentsUrl, { headers });
       const comments = await commentsRes.json();
+      const sinceId = getLastPostedCommentId();
       for (let i = comments.length - 1; i >= 0; i--) {
         const c = comments[i];
-        if (c.user?.login !== "github-actions[bot]") {
-          lastCommentBody = c.body ?? null;
-          break;
-        }
+        if (c.user?.login === "github-actions[bot]") continue;
+        if (sinceId !== null && (c.id ?? 0) <= sinceId) continue;
+        lastCommentBody = c.body ?? null;
+        break;
       }
     } catch {
     }
@@ -3144,6 +3208,15 @@ async function main() {
   const harness = new PiHarness();
   createHarnessServer(harness, PORT);
   console.log(`pi-harness v0.1.0 ready (GET http://0.0.0.0:${PORT}/)`);
+  const issueNumber = parseInt(process.env.ISSUE_NUMBER ?? "", 10);
+  const repoEnv = process.env.GITHUB_REPOSITORY ?? "";
+  if (issueNumber > 0 && repoEnv.includes("/")) {
+    const [owner, repo] = repoEnv.split("/");
+    console.log(`pi-harness: auto-starting on issue #${issueNumber} (${owner}/${repo})`);
+    harness.run({ owner, repo, issueNumber }).catch((e) => {
+      console.error("harness run failed:", e instanceof Error ? e.message : String(e));
+    });
+  }
 }
 main().catch((e) => {
   console.error("Fatal:", e instanceof Error ? e.message : String(e));
