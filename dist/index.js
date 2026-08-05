@@ -26307,6 +26307,16 @@ async function run() {
 run().catch((e) => {
   core4.setFailed(e instanceof Error ? e.message : String(e));
 });
+export {
+  continuePrompt,
+  handleOutcome,
+  implementPrompt,
+  onClose,
+  onComment,
+  onOpen,
+  run,
+  waitForServer
+};
 /*! Bundled license information:
 
 undici/lib/fetch/body.js:
