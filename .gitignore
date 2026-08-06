@@ -1,4 +1,5 @@
-node_modules/
+dist/
+/a-factory
 *.log
 .DS_Store
 .idea/

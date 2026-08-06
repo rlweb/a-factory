@@ -1,0 +1,11 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 42,
+    "title": "Add dark mode toggle",
+    "body": "Users want a dark mode toggle in settings.",
+    "user": { "login": "alice", "type": "User" },
+    "labels": [{ "name": "type:ticket" }]
+  },
+  "sender": { "login": "alice", "type": "User" }
+}

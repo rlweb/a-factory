@@ -1,0 +1,7 @@
+Inline review comment from @carol on src/theme/toggle.ts:24:
+
+Users want a dark mode toggle in settings.
+
+Update the code on the PR branch to address it and push, or reply with
+`gh pr comment` if you need to discuss. Re-run the full verification
+command before pushing.

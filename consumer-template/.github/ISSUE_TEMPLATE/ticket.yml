@@ -1,0 +1,11 @@
+name: Ticket
+description: A contained, well-specified piece of work for the factory to implement.
+labels: ["type:ticket"]
+body:
+  - type: textarea
+    id: spec
+    attributes:
+      label: What should be built?
+      description: Describe the change. Be as specific as you can about the desired behavior and acceptance criteria.
+    validations:
+      required: true

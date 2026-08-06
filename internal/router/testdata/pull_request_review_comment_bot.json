@@ -1,0 +1,13 @@
+{
+  "action": "created",
+  "pull_request": {
+    "number": 55
+  },
+  "comment": {
+    "body": "Preview: https://a-factory-issue-42.exe.xyz",
+    "path": "README.md",
+    "line": 1,
+    "user": { "login": "a-factory-bot", "type": "Bot" }
+  },
+  "sender": { "login": "a-factory-bot", "type": "Bot" }
+}

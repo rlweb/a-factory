@@ -1,0 +1,15 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 55,
+    "title": "Fix crash on save",
+    "pull_request": {
+      "url": "https://api.github.com/repos/rlweb/example/pulls/55"
+    }
+  },
+  "comment": {
+    "body": "Nice work, one nit inline.",
+    "user": { "login": "carol", "type": "User" }
+  },
+  "sender": { "login": "carol", "type": "User" }
+}

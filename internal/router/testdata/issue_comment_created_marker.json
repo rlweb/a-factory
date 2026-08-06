@@ -1,0 +1,12 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "title": "Add dark mode toggle"
+  },
+  "comment": {
+    "body": "Quoting the bot: <!-- a-factory:state vm=a-factory-issue-42 conversation=c1 -->",
+    "user": { "login": "someone", "type": "User" }
+  },
+  "sender": { "login": "someone", "type": "User" }
+}

@@ -1,0 +1,11 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 43,
+    "title": "Something vague",
+    "body": "No type label yet.",
+    "user": { "login": "alice", "type": "User" },
+    "labels": []
+  },
+  "sender": { "login": "alice", "type": "User" }
+}

@@ -1,0 +1,32 @@
+You are working in a fresh checkout of this repository on a dedicated
+machine. The GitHub issue below reports a bug. The mattpocock/skills
+library is installed — use it.
+
+Diagnose it with /diagnosing-bugs
+(https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnosing-bugs/SKILL.md):
+reproduce → minimise → hypothesise → instrument → fix → regression-test.
+Get a command that goes red on this bug before theorising. If you cannot
+reproduce it, or key details are missing, ask on the issue with
+`gh issue comment` and stop.
+
+Once you have the fix:
+Use /tdd (https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd)
+where possible, and lock the bug down with a regression test that fails
+without your fix and passes with it.
+Run typechecking regularly, single test files regularly.
+Once done, use /code-review to review the work.
+
+VERIFY: run the repo's full verification command (see AGENTS.md) and do
+not continue until it passes clean. Fix and re-run if it fails.
+
+Commit your work to the current branch and open a pull request that
+closes the issue (e.g. "Closes #42") with `gh pr create`.
+
+PREVIEW: run the repo's preview command so the work is served on its
+port, then post the exe.dev preview URL as a PR comment so anyone can QA
+it.
+
+Do not merge the PR yourself.
+
+--- BUG #42: Add dark mode toggle ---
+Users want a dark mode toggle in settings.

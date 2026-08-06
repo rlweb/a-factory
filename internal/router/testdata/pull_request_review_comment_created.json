@@ -1,0 +1,13 @@
+{
+  "action": "created",
+  "pull_request": {
+    "number": 55
+  },
+  "comment": {
+    "body": "This should use the shared helper instead.",
+    "path": "src/theme/toggle.ts",
+    "line": 24,
+    "user": { "login": "carol", "type": "User" }
+  },
+  "sender": { "login": "carol", "type": "User" }
+}

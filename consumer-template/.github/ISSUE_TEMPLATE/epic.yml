@@ -1,0 +1,11 @@
+name: Epic
+description: A large piece of work to be researched and broken down into sub-tickets, not implemented directly.
+labels: ["type:epic"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What's the destination?
+      description: Describe the goal at a high level. The factory will grill you for missing requirements before decomposing this into sub-tickets.
+    validations:
+      required: true

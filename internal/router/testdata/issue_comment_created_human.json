@@ -1,0 +1,12 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "title": "Add dark mode toggle"
+  },
+  "comment": {
+    "body": "Please also handle the system theme preference.",
+    "user": { "login": "bob", "type": "User" }
+  },
+  "sender": { "login": "bob", "type": "User" }
+}

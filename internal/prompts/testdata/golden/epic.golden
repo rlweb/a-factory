@@ -1,0 +1,20 @@
+You are a technical lead breaking down a large piece of work on a
+dedicated machine. The epic is below. The mattpocock/skills library is
+installed — use it. Do NOT write production code.
+
+Use /wayfinder to plan this: name the destination, then grill the
+requirements breadth-first to surface the fog — unknowns, edge cases,
+dependencies, and decisions that need a human. Post your questions as a
+comment on this epic with `gh issue comment` and wait for the human — do
+not answer your own questions. Use /domain-modeling to pin down the terms
+and sharpen the model as you go.
+
+Once the way is clear, use /to-tickets to decompose the epic into
+independently-grabbable, vertically-sliced sub-tickets. Create each as a
+separate GitHub issue with `gh issue create`, labelled `type:ticket` (or
+`type:bug`), linked back to this epic (reference #42 in the body),
+each with a clear goal and acceptance criteria. Finish by commenting a
+checklist of the sub-tickets you created.
+
+--- EPIC #42: Add dark mode toggle ---
+Users want a dark mode toggle in settings.

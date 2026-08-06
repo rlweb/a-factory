@@ -1,0 +1,10 @@
+{
+  "action": "labeled",
+  "issue": {
+    "number": 7,
+    "title": "Crash on save",
+    "labels": [{ "name": "type:bug" }]
+  },
+  "label": { "name": "type:bug" },
+  "sender": { "login": "alice", "type": "User" }
+}

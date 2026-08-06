@@ -1,0 +1,8 @@
+New review feedback on the pull request for this issue, from
+@carol:
+
+Users want a dark mode toggle in settings.
+
+Address it: make the change on the PR branch and push, or reply on the
+thread with `gh pr comment` if you disagree or need clarification. Re-run
+the full verification command before pushing, and refresh the preview.

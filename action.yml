@@ -1,0 +1,58 @@
+name: 'a-factory'
+description: 'Issue-driven autonomous SDLC: provisions an exe.dev VM running Shelley to work a GitHub issue and open a PR'
+
+inputs:
+  exe-api-token:
+    description: 'exe.dev API bearer token (mint via: ssh exe.dev ssh-key generate-api-key), scoped to at least new/rm/ls'
+    required: true
+  exe-ssh-private-key:
+    description: 'Account SSH private key (PEM) for exe.dev — required for operations exe.dev refuses over any bearer token regardless of scope: minting a per-VM Shelley key and GitHub-integration lookup/attach. See AGENTS.md.'
+    required: true
+  github-token:
+    description: 'Token the Actions job uses to comment/label on issues and PRs (distinct from the in-VM agent''s own git/gh access, which goes through exe.dev''s GitHub integration)'
+    required: false
+    default: ${{ github.token }}
+  vm-image:
+    description: 'exe.dev VM image to provision (default: ghcr.io/boldsoftware/exeuntu:latest)'
+    required: false
+    default: ''
+  vm-prefix:
+    description: 'VM name prefix — each box is named "<prefix>-issue-<n>" (default: a-factory)'
+    required: false
+    default: ''
+  cheap-model:
+    description: 'Model for type:ticket / type:bug (default: deepseek-v4-flash)'
+    required: false
+    default: ''
+  strong-model:
+    description: 'Model for type:epic (default: deepseek-v4-pro)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+
+    - name: Build a-factory
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: go build -o ${{ runner.temp }}/a-factory ./cmd/a-factory
+
+    - name: Run a-factory
+      shell: bash
+      env:
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        EXE_API_TOKEN: ${{ inputs.exe-api-token }}
+        EXE_SSH_PRIVATE_KEY: ${{ inputs.exe-ssh-private-key }}
+        FACTORY_BOX_IMAGE: ${{ inputs.vm-image }}
+        FACTORY_VM_PREFIX: ${{ inputs.vm-prefix }}
+        FACTORY_CHEAP_MODEL: ${{ inputs.cheap-model }}
+        FACTORY_STRONG_MODEL: ${{ inputs.strong-model }}
+      run: ${{ runner.temp }}/a-factory

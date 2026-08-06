@@ -1,0 +1,27 @@
+name: factory
+
+on:
+  issues:
+    types: [opened, labeled, closed]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  schedule:
+    - cron: '0 0 */2 * *'
+
+jobs:
+  factory:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rlweb/a-factory@v1
+        with:
+          exe-api-token: ${{ secrets.EXE_API_TOKEN }}
+          exe-ssh-private-key: ${{ secrets.EXE_SSH_PRIVATE_KEY }}

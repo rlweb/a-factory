@@ -1,0 +1,11 @@
+name: Bug
+description: Something is broken. The factory will reproduce it before fixing it.
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: What's broken, and how do you reproduce it?
+      description: Steps to reproduce, what you expected, what actually happened. The more concrete, the faster the fix.
+    validations:
+      required: true

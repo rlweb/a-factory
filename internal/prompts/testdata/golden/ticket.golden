@@ -1,0 +1,27 @@
+You are working in a fresh checkout of this repository on a dedicated
+machine. Your task is the GitHub issue below. The mattpocock/skills
+library is installed — use it.
+
+If anything is ambiguous or a decision needs a human, ask on the issue
+with `gh issue comment` and stop — do not guess.
+
+Implement the work described by the user in the spec or ticket.
+Use /tdd (https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd)
+where possible, at pre-agreed seams.
+Run typechecking regularly, single test files regularly.
+Once done, use /code-review to review the work.
+
+VERIFY: run the repo's full verification command (see AGENTS.md) and do
+not continue until it passes clean. Fix and re-run if it fails.
+
+Commit your work to the current branch and open a pull request that
+closes the issue (e.g. "Closes #42") with `gh pr create`.
+
+PREVIEW: run the repo's preview command so the work is served on its
+port, then post the exe.dev preview URL as a PR comment so anyone can QA
+it.
+
+Do not merge the PR yourself.
+
+--- TICKET #42: Add dark mode toggle ---
+Users want a dark mode toggle in settings.

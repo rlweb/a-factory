@@ -1,0 +1,11 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 44,
+    "title": "Ambiguous issue",
+    "body": "Has both a ticket and bug label by mistake.",
+    "user": { "login": "alice", "type": "User" },
+    "labels": [{ "name": "type:ticket" }, { "name": "type:bug" }]
+  },
+  "sender": { "login": "alice", "type": "User" }
+}
