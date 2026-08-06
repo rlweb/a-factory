@@ -306,6 +306,13 @@ deterministic naming scheme works as designed). **`--prompt` itself was not
 yet tested** (ran out of token permissions before reaching it) — still need
 to confirm it actually seeds a conversation and what (if anything) it returns.
 
+The GitHub Action exposes `--image`, `--cpu`, `--memory`, `--disk`, `--tag`,
+`--env`, `--integration`, `--pool`, `--registry-auth`, and `--setup-script` as
+inputs. It deliberately owns `--name`, `--json`, `--no-email`, and `--comment`
+so responses remain parseable, notifications stay off, and every VM records
+that it was created by a-factory. It omits `--prompt` because Shelley is
+seeded through its direct fire-and-forget API; the CLI prompt path blocks.
+
 ## Confirmed: `ls` (list VMs)
 
 Returns `{"vms":[{...}]}`, NOT a plain newline-separated list.

@@ -163,7 +163,7 @@ func testConfig() config.Config {
 		StateMarkerPrefix:  "<!-- a-factory:state",
 		CheapModel:         "deepseek-v4-flash",
 		StrongModel:        "deepseek-v4-pro",
-		BoxImage:           "ghcr.io/boldsoftware/exeuntu:latest",
+		BoxImage:           "ghcr.io/rlweb/a-factory:latest",
 		VMTag:              "a-factory",
 		ShelleyTokenExpiry: "30d",
 	}
@@ -306,6 +306,47 @@ func TestProvisionSuccess(t *testing.T) {
 		if !strings.Contains(posted, want) {
 			t.Errorf("posted state comment = %q, want it to contain %q", posted, want)
 		}
+	}
+}
+
+func TestCreateVMCommandIncludesConfiguredOptions(t *testing.T) {
+	cfg := testConfig()
+	cfg.VMExtraTags = []string{"preview", "custom tag"}
+	cfg.VMCPU = "4"
+	cfg.VMMemory = "16GB"
+	cfg.VMDisk = "50GB"
+	cfg.VMEnv = []string{"FOO=bar", "QUOTED=it's safe"}
+	cfg.VMPool = "team-pool"
+	cfg.VMIntegrations = []string{"monitoring"}
+	cfg.VMRegistryAuth = "user:p@ss"
+	cfg.VMSetupScript = "#!/bin/sh\necho ready"
+
+	got := createVMCommand("a-factory-issue-42", cfg)
+	for _, want := range []string{
+		"new --name='a-factory-issue-42'",
+		"--image='ghcr.io/rlweb/a-factory:latest'",
+		"--tag='a-factory'",
+		"--tag='preview'",
+		"--tag='custom tag'",
+		"--cpu='4'",
+		"--memory='16GB'",
+		"--disk='50GB'",
+		"--env 'FOO=bar'",
+		"--env 'QUOTED=it'\\''s safe'",
+		"--pool='team-pool'",
+		"--integration='monitoring'",
+		"--registry-auth='user:p@ss'",
+		"--setup-script='#!/bin/sh\necho ready'",
+		"--comment='Created by a-factory via GitHub Actions.'",
+		"--json",
+		"--no-email",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("createVMCommand() = %q, want substring %q", got, want)
+		}
+	}
+	if strings.Contains(got, "--prompt") {
+		t.Errorf("createVMCommand() = %q, must not include --prompt", got)
 	}
 }
 

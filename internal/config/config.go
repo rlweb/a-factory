@@ -73,7 +73,7 @@ const (
 	DefaultStateMarkerPrefix  = "<!-- a-factory:state"
 	DefaultCheapModel         = "deepseek-v4-flash"
 	DefaultStrongModel        = "deepseek-v4-pro"
-	DefaultBoxImage           = "ghcr.io/boldsoftware/exeuntu:latest"
+	DefaultBoxImage           = "ghcr.io/rlweb/a-factory:latest"
 	DefaultOpenCodeEndpoint   = "https://opencode.ai/zen/go/v1"
 	DefaultMaxTokens          = 8192
 	DefaultVMTag              = "a-factory"
@@ -105,6 +105,22 @@ type Config struct {
 	// VMTag tags every box a-factory creates, so Reap can identify its own
 	// VMs via exe.dev's own tag attribute rather than name-prefix matching.
 	VMTag string
+	// VMExtraTags are additional tags added alongside VMTag.
+	VMExtraTags []string
+	// VMCPU, VMMemory, and VMDisk override exe.dev's resource defaults when set.
+	VMCPU    string
+	VMMemory string
+	VMDisk   string
+	// VMEnv passes comma-separated KEY=VALUE entries to exe.dev.
+	VMEnv []string
+	// VMPool selects an exe.dev team pool when set.
+	VMPool string
+	// VMIntegrations attaches additional exe.dev integrations at creation time.
+	VMIntegrations []string
+	// VMRegistryAuth supplies USERNAME:PASSWORD for a private image registry.
+	VMRegistryAuth string
+	// VMSetupScript runs once on first boot.
+	VMSetupScript string
 	// ShelleyTokenExpiry is the --exp value for the VM-scoped Shelley key
 	// minted at Provision time (e.g. "30d", "1y", "never").
 	ShelleyTokenExpiry string
@@ -122,6 +138,15 @@ func Load() Config {
 		OpenCodeEndpoint:   StrEnv("FACTORY_OPENCODE_ENDPOINT", DefaultOpenCodeEndpoint),
 		MaxTokens:          IntEnv("FACTORY_MAX_TOKENS", DefaultMaxTokens),
 		VMTag:              StrEnv("FACTORY_VM_TAG", DefaultVMTag),
+		VMExtraTags:        ListEnv("FACTORY_VM_TAGS", nil),
+		VMCPU:              StrEnv("FACTORY_VM_CPU", ""),
+		VMMemory:           StrEnv("FACTORY_VM_MEMORY", ""),
+		VMDisk:             StrEnv("FACTORY_VM_DISK", ""),
+		VMEnv:              ListEnv("FACTORY_VM_ENV", nil),
+		VMPool:             StrEnv("FACTORY_VM_POOL", ""),
+		VMIntegrations:     ListEnv("FACTORY_VM_INTEGRATIONS", nil),
+		VMRegistryAuth:     StrEnv("FACTORY_VM_REGISTRY_AUTH", ""),
+		VMSetupScript:      StrEnv("FACTORY_VM_SETUP_SCRIPT", ""),
 		ShelleyTokenExpiry: StrEnv("FACTORY_SHELLEY_TOKEN_EXPIRY", DefaultShelleyTokenExpiry),
 	}
 }

@@ -17,7 +17,7 @@ import (
 // accepts any public key and runs handler for every "exec" request,
 // returning (stdout, exitCode). It gives SSHAdminClient a real, local,
 // self-contained SSH endpoint to test against — no real network access.
-func startFakeSSHServer(t *testing.T, handler func(command string) (stdout string, exitCode int)) (host string, port int) {
+func startFakeSSHServer(t *testing.T, handler func(command string) (stdout string, exitCode int)) (host string, port int, hostKeyCallback ssh.HostKeyCallback) {
 	t.Helper()
 
 	hostKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -53,7 +53,7 @@ func startFakeSSHServer(t *testing.T, handler func(command string) (stdout strin
 	}()
 
 	addr := listener.Addr().(*net.TCPAddr)
-	return addr.IP.String(), addr.Port
+	return addr.IP.String(), addr.Port, ssh.FixedHostKey(hostSigner.PublicKey())
 }
 
 func serveFakeSSHConn(nConn net.Conn, config *ssh.ServerConfig, handler func(string) (string, int)) {
@@ -112,12 +112,12 @@ func testSigner(t *testing.T) ssh.Signer {
 
 func TestSSHAdminClientExec(t *testing.T) {
 	var gotCommand string
-	host, port := startFakeSSHServer(t, func(command string) (string, int) {
+	host, port, hostKeyCallback := startFakeSSHServer(t, func(command string) (string, int) {
 		gotCommand = command
 		return "Email Address: test@example.com\n", 0
 	})
 
-	c := &SSHAdminClient{Host: host, Port: port, Signer: testSigner(t)}
+	c := &SSHAdminClient{Host: host, Port: port, Signer: testSigner(t), hostKeyCallback: hostKeyCallback}
 	out, err := c.Exec(context.Background(), "whoami")
 	if err != nil {
 		t.Fatalf("Exec() error = %v", err)
@@ -131,11 +131,11 @@ func TestSSHAdminClientExec(t *testing.T) {
 }
 
 func TestSSHAdminClientExecNonZeroExit(t *testing.T) {
-	host, port := startFakeSSHServer(t, func(command string) (string, int) {
+	host, port, hostKeyCallback := startFakeSSHServer(t, func(command string) (string, int) {
 		return "command not allowed by token permissions\n", 1
 	})
 
-	c := &SSHAdminClient{Host: host, Port: port, Signer: testSigner(t)}
+	c := &SSHAdminClient{Host: host, Port: port, Signer: testSigner(t), hostKeyCallback: hostKeyCallback}
 	_, err := c.Exec(context.Background(), "ssh-key generate-api-key --vm=x")
 	if err == nil {
 		t.Fatal("Exec() error = nil, want an error on non-zero remote exit")
@@ -148,6 +148,20 @@ func TestSSHAdminClientConnectionRefused(t *testing.T) {
 	_, err := c.Exec(context.Background(), "whoami")
 	if err == nil {
 		t.Fatal("Exec() error = nil, want an error when the connection is refused")
+	}
+}
+
+func TestValidatedHostKeyRejectsUnexpectedKey(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		t.Fatalf("signer from key: %v", err)
+	}
+	if err := validatedHostKey("exe.dev", nil, signer.PublicKey()); err == nil {
+		t.Fatal("validatedHostKey() error = nil, want mismatch error")
 	}
 }
 

@@ -28,6 +28,45 @@ issue opened → box created → agent seeded → ... → PR opened → issue cl
    before opening a PR or serving a preview.
 5. Open an issue with a `type:ticket`, `type:bug`, or `type:epic` label.
 
+### VM options
+
+The action exposes exe.dev `new` options through `with:` inputs. Omitted values
+use exe.dev defaults.
+
+| Input | Maps to | Example |
+|---|---|---|
+| `vm-image` | `--image` | `ghcr.io/rlweb/a-factory:latest` |
+| `vm-cpu` | `--cpu` | `4` |
+| `vm-memory` | `--memory` | `16GB` |
+| `vm-disk` | `--disk` | `50GB` |
+| `vm-tags` | additional `--tag` values | `preview,staging` |
+| `vm-env` | repeated `--env` values | `FOO=bar,BAZ=qux` |
+| `vm-pool` | `--pool` | `team-pool` |
+| `vm-integrations` | repeated `--integration` values | `monitoring` |
+| `vm-registry-auth` | `--registry-auth` | `${{ secrets.REGISTRY_AUTH }}` |
+| `vm-setup-script` | `--setup-script` | `#!/bin/sh\necho ready` |
+
+`vm-prefix` controls deterministic names (`<prefix>-issue-<number>`), and is
+not passed as an exe.dev option. The factory always adds its `a-factory` tag,
+uses the deterministic `--name`, requests `--json`, sets `--no-email`, and
+sets comment to `Created by a-factory via GitHub Actions.`. It does not expose
+`--prompt`: Shelley is seeded through its fire-and-forget API after VM setup.
+`--prompt` would also block the Actions job.
+
+Example:
+
+```yaml
+- uses: rlweb/a-factory@v1
+  with:
+    exe-api-token: ${{ secrets.EXE_API_TOKEN }}
+    exe-ssh-private-key: ${{ secrets.EXE_SSH_PRIVATE_KEY }}
+    vm-cpu: '4'
+    vm-memory: 16GB
+    vm-disk: 50GB
+    vm-tags: preview
+    vm-env: 'NODE_ENV=development,FEATURE_X=true'
+```
+
 ## Secrets
 
 | Secret | What it's for |
@@ -36,6 +75,11 @@ issue opened → box created → agent seeded → ... → PR opened → issue cl
 | `EXE_SSH_PRIVATE_KEY` | An exe.dev account SSH private key. Required for minting each box its own scoped Shelley key and attaching GitHub repo access — exe.dev refuses both over *any* bearer token, regardless of scope (see [`docs/spike-findings.md`](docs/spike-findings.md)). |
 | `OPENCODE_API_KEY` | Authenticates the custom models a-factory registers on each box (proxies through [OpenCode's](https://opencode.ai) LLM gateway). |
 | `GITHUB_TOKEN` | Provided automatically by Actions — used for the workflow's own comments/labels, distinct from the in-box agent's own `git`/`gh` access. |
+
+All account and VM SSH connections validate exe.dev's documented host-key
+fingerprint (`SHA256:JJOP/lwiBGOMilfONPWZCXUrfK154cnJFXcqlsi6lPo`); host-key
+verification cannot be disabled by action inputs. See exe.dev's
+[host-key FAQ](https://exe.dev/docs/faq/host-key).
 
 ## Issue types
 
@@ -92,3 +136,13 @@ make verify     # typecheck + lint + test — the gate this repo holds itself to
 `make verify` never touches the network. The one path that hits real
 exe.dev is `make smoke` (`cmd/smoke`), gated behind `FACTORY_SMOKE=1` plus
 real credentials — run it manually, never in CI.
+
+## VM image
+
+The published default image is `ghcr.io/rlweb/a-factory:latest`. It extends
+exeuntu with Node.js 22, pnpm, the Playwright CLI, and Chromium with its system
+dependencies, alongside the factory's required tools and skills. The GHCR
+package must be public so exe.dev can pull it when creating a VM.
+
+Pull requests build the image without publishing it. Pushes to `main` publish
+`latest`; version tags publish matching image tags.

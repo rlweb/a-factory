@@ -10,6 +10,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// ExeDevHostKeyFingerprint is exe.dev's documented SSH host-key fingerprint.
+const ExeDevHostKeyFingerprint = "SHA256:JJOP/lwiBGOMilfONPWZCXUrfK154cnJFXcqlsi6lPo"
+
+func validatedHostKey(hostname string, _ net.Addr, key ssh.PublicKey) error {
+	if got := ssh.FingerprintSHA256(key); got != ExeDevHostKeyFingerprint {
+		return fmt.Errorf("exe: host key mismatch for %s: got %s, want %s", hostname, got, ExeDevHostKeyFingerprint)
+	}
+	return nil
+}
+
 // AdminClient is exe.dev's account-authenticated SSH surface — see the
 // package doc for why this exists alongside the bearer-token Client.
 type AdminClient interface {
@@ -32,6 +42,9 @@ type SSHAdminClient struct {
 	Signer ssh.Signer
 	// Timeout bounds connection + command execution. Zero means 30s.
 	Timeout time.Duration
+	// hostKeyCallback exists only so package tests can pin their local fake
+	// server. Production instances always use validatedHostKey.
+	hostKeyCallback ssh.HostKeyCallback
 }
 
 // NewSSHAdminClient parses an unencrypted SSH private key (PEM) — the
@@ -56,15 +69,13 @@ func (c *SSHAdminClient) Exec(ctx context.Context, command string) (string, erro
 		// exe.dev authenticates purely by SSH key identity; the username
 		// value itself does not appear to be checked (unconfirmed — the
 		// SSH protocol requires some value, so this is a placeholder).
-		User: "exe",
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(c.Signer)},
-		// ponytail: exe.dev's host key isn't pinned. Each VM (and the
-		// control host) presents its own key, so a static pin isn't
-		// straightforward; upgrade to a real HostKeyCallback (fetched/cached
-		// known_hosts) if this needs to defend against active MITM, not just
-		// opportunistic encryption.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		User:            "exe",
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(c.Signer)},
+		HostKeyCallback: c.hostKeyCallback,
 		Timeout:         timeout,
+	}
+	if config.HostKeyCallback == nil {
+		config.HostKeyCallback = validatedHostKey
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)

@@ -125,11 +125,32 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadOverrides(t *testing.T) {
 	t.Setenv("FACTORY_VM_PREFIX", "custom-prefix")
 	t.Setenv("FACTORY_CHEAP_MODEL", "custom-model")
+	t.Setenv("FACTORY_VM_CPU", "4")
+	t.Setenv("FACTORY_VM_MEMORY", "16GB")
+	t.Setenv("FACTORY_VM_DISK", "50GB")
+	t.Setenv("FACTORY_VM_TAGS", "preview,staging")
+	t.Setenv("FACTORY_VM_ENV", "FOO=bar,BAZ=qux")
+	t.Setenv("FACTORY_VM_POOL", "team-pool")
+	t.Setenv("FACTORY_VM_INTEGRATIONS", "monitoring,alerts")
+	t.Setenv("FACTORY_VM_REGISTRY_AUTH", "user:password")
+	t.Setenv("FACTORY_VM_SETUP_SCRIPT", "#!/bin/sh\necho ready")
 	c := Load()
 	if c.VMPrefix != "custom-prefix" {
 		t.Errorf("VMPrefix = %q, want %q", c.VMPrefix, "custom-prefix")
 	}
 	if c.CheapModel != "custom-model" {
 		t.Errorf("CheapModel = %q, want %q", c.CheapModel, "custom-model")
+	}
+	if c.VMCPU != "4" || c.VMMemory != "16GB" || c.VMDisk != "50GB" {
+		t.Errorf("VM sizing = %q/%q/%q, want 4/16GB/50GB", c.VMCPU, c.VMMemory, c.VMDisk)
+	}
+	if len(c.VMExtraTags) != 2 || c.VMExtraTags[0] != "preview" || c.VMExtraTags[1] != "staging" {
+		t.Errorf("VMExtraTags = %v, want [preview staging]", c.VMExtraTags)
+	}
+	if len(c.VMEnv) != 2 || c.VMEnv[0] != "FOO=bar" || c.VMEnv[1] != "BAZ=qux" {
+		t.Errorf("VMEnv = %v, want [FOO=bar BAZ=qux]", c.VMEnv)
+	}
+	if c.VMPool != "team-pool" || len(c.VMIntegrations) != 2 || c.VMRegistryAuth != "user:password" || c.VMSetupScript != "#!/bin/sh\necho ready" {
+		t.Errorf("VM optional settings not loaded correctly: %+v", c)
 	}
 }

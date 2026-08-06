@@ -122,7 +122,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 
 	vm := VMName(o.Config.VMPrefix, d.Issue)
 
-	newBody, err := o.Exe.Exec(ctx, createVMCommand(vm, o.Config.BoxImage, o.Config.VMTag))
+	newBody, err := o.Exe.Exec(ctx, createVMCommand(vm, o.Config))
 	if err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: create VM: %w", d.Issue, err)
 	}
@@ -397,8 +397,48 @@ func hasTag(tags []string, want string) bool {
 // one is confirmed against a real account — see docs/spike-findings.md —
 // EXCEPT where noted.
 
-func createVMCommand(vm, image, tag string) string {
-	return fmt.Sprintf("new --name=%s --image=%s --tag=%s", vm, image, tag)
+func createVMCommand(vm string, cfg config.Config) string {
+	args := []string{
+		"new",
+		"--name=" + shellQuote(vm),
+		"--image=" + shellQuote(cfg.BoxImage),
+		"--tag=" + shellQuote(cfg.VMTag),
+		"--comment=" + shellQuote("Created by a-factory via GitHub Actions."),
+		"--json",
+		"--no-email",
+	}
+	for _, tag := range cfg.VMExtraTags {
+		args = append(args, "--tag="+shellQuote(tag))
+	}
+	if cfg.VMCPU != "" {
+		args = append(args, "--cpu="+shellQuote(cfg.VMCPU))
+	}
+	if cfg.VMMemory != "" {
+		args = append(args, "--memory="+shellQuote(cfg.VMMemory))
+	}
+	if cfg.VMDisk != "" {
+		args = append(args, "--disk="+shellQuote(cfg.VMDisk))
+	}
+	for _, env := range cfg.VMEnv {
+		args = append(args, "--env", shellQuote(env))
+	}
+	if cfg.VMPool != "" {
+		args = append(args, "--pool="+shellQuote(cfg.VMPool))
+	}
+	for _, integration := range cfg.VMIntegrations {
+		args = append(args, "--integration="+shellQuote(integration))
+	}
+	if cfg.VMRegistryAuth != "" {
+		args = append(args, "--registry-auth="+shellQuote(cfg.VMRegistryAuth))
+	}
+	if cfg.VMSetupScript != "" {
+		args = append(args, "--setup-script="+shellQuote(cfg.VMSetupScript))
+	}
+	return strings.Join(args, " ")
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func destroyVMCommand(vm string) string {

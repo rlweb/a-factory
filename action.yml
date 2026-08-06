@@ -13,11 +13,47 @@ inputs:
     required: false
     default: ${{ github.token }}
   vm-image:
-    description: 'exe.dev VM image to provision (default: ghcr.io/boldsoftware/exeuntu:latest)'
+    description: 'exe.dev VM image to provision (default: ghcr.io/rlweb/a-factory:latest)'
     required: false
     default: ''
   vm-prefix:
     description: 'VM name prefix — each box is named "<prefix>-issue-<n>" (default: a-factory)'
+    required: false
+    default: ''
+  vm-cpu:
+    description: 'exe.dev VM CPU count (default: exe.dev default)'
+    required: false
+    default: ''
+  vm-memory:
+    description: 'exe.dev VM memory allocation, for example 4GB (default: exe.dev default)'
+    required: false
+    default: ''
+  vm-disk:
+    description: 'exe.dev VM disk size, for example 50GB (default: exe.dev default)'
+    required: false
+    default: ''
+  vm-tags:
+    description: 'Additional comma-separated exe.dev VM tags (a-factory tag is always added)'
+    required: false
+    default: ''
+  vm-env:
+    description: 'Comma-separated KEY=VALUE environment variables passed to exe.dev new'
+    required: false
+    default: ''
+  vm-pool:
+    description: 'exe.dev team pool in which to create the VM'
+    required: false
+    default: ''
+  vm-integrations:
+    description: 'Additional comma-separated exe.dev integrations to attach at creation'
+    required: false
+    default: ''
+  vm-registry-auth:
+    description: 'USERNAME:PASSWORD for a private registry hosting vm-image; pass from a secret'
+    required: false
+    default: ''
+  vm-setup-script:
+    description: 'exe.dev first-boot setup script, max 10KiB; use a block scalar for multiline YAML'
     required: false
     default: ''
   cheap-model:
@@ -53,6 +89,15 @@ runs:
         EXE_SSH_PRIVATE_KEY: ${{ inputs.exe-ssh-private-key }}
         FACTORY_BOX_IMAGE: ${{ inputs.vm-image }}
         FACTORY_VM_PREFIX: ${{ inputs.vm-prefix }}
+        FACTORY_VM_CPU: ${{ inputs.vm-cpu }}
+        FACTORY_VM_MEMORY: ${{ inputs.vm-memory }}
+        FACTORY_VM_DISK: ${{ inputs.vm-disk }}
+        FACTORY_VM_TAGS: ${{ inputs.vm-tags }}
+        FACTORY_VM_ENV: ${{ inputs.vm-env }}
+        FACTORY_VM_POOL: ${{ inputs.vm-pool }}
+        FACTORY_VM_INTEGRATIONS: ${{ inputs.vm-integrations }}
+        FACTORY_VM_REGISTRY_AUTH: ${{ inputs.vm-registry-auth }}
+        FACTORY_VM_SETUP_SCRIPT: ${{ inputs.vm-setup-script }}
         FACTORY_CHEAP_MODEL: ${{ inputs.cheap-model }}
         FACTORY_STRONG_MODEL: ${{ inputs.strong-model }}
       run: ${{ runner.temp }}/a-factory
