@@ -59,7 +59,7 @@ func main() {
 	ctx := context.Background()
 
 	log.Printf("smoke: creating VM %s", vm)
-	if _, err := exeClient.Exec(ctx, fmt.Sprintf("new --name=%s --image=ghcr.io/boldsoftware/exeuntu:latest --tag=a-factory-smoke", vm)); err != nil {
+	if _, err := exeClient.Exec(ctx, fmt.Sprintf("new --name=%s --image=ghcr.io/rlweb/a-factory:latest --tag=a-factory-smoke", vm)); err != nil {
 		log.Fatalf("smoke: create VM: %v", err)
 	}
 

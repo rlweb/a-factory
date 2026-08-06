@@ -13,7 +13,7 @@ a PR; closing the issue tears the VM down.
   bundles. Reads `GITHUB_EVENT_NAME`/`GITHUB_EVENT_PATH`, routes the event,
   drives exe.dev + Shelley.
 - `image/Dockerfile` — the VM image (extends exe.dev's `exeuntu` base, adds
-  the mattpocock/skills library). No boot script: registering custom models,
+  Node.js, pnpm, Playwright/Chromium, and the mattpocock/skills library). No boot script: registering custom models,
   checking out the repo, and seeding the Shelley session are ordinary API
   calls `internal/orchestrate.Provision` makes directly (a bearer-token HTTPS
   client for VM lifecycle, Shelley's own HTTPS API once a key is minted, and

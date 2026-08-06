@@ -13,14 +13,26 @@
 # AGENTS.md. All of this is well-tested Go code, not an opaque shell script
 # racing Shelley's own startup.
 #
-# Consumer repos with a specific toolchain (Node, Go, Python, ...) should
-# extend this image with their own build tools/linters — this base only
-# guarantees the skills library and the tools a-factory's own orchestration
-# needs on the box (git, curl, jq).
+# Common web-project tooling is included so agents can immediately run the
+# usual install, test, and browser-validation commands. Consumer repos can
+# still extend this image with project-specific tools and linters.
+FROM node:22-bookworm-slim AS node
+
 FROM ghcr.io/boldsoftware/exeuntu:latest
 
+ARG PNPM_VERSION=10.12.4
+ARG PLAYWRIGHT_VERSION=1.52.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+COPY --from=node /usr/local /usr/local
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git curl jq \
+        ca-certificates git curl jq \
+    && corepack enable pnpm \
+    && corepack prepare "pnpm@${PNPM_VERSION}" --activate \
+    && npm install --global "playwright@${PLAYWRIGHT_VERSION}" \
+    && playwright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright \
     && rm -rf /var/lib/apt/lists/*
 
 # Pinned to a release tag, not `main` — these skills have had breaking
