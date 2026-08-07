@@ -499,8 +499,9 @@ func versionCheckCommand() string {
 // — the hostname is the INTEGRATION'S OWN NAME (confirmed; exe.dev's docs
 // example "repo.int.exe.xyz" is a placeholder, not a literal host — see
 // docs/spike-findings.md), not a fixed value. No PAT or secret ever touches
-// the box.
+// the box. Clones under /home/exedev — exe.dev's own documented workspace
+// directory (confirmed: /root wasn't writable even as root).
 func cloneCommand(integrationName, owner, repo string) string {
 	url := fmt.Sprintf("https://%s.int.exe.xyz/%s/%s.git", integrationName, owner, repo)
-	return fmt.Sprintf("git clone %s /root/workspace", url)
+	return fmt.Sprintf("git clone %s /home/exedev/workspace", url)
 }
