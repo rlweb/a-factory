@@ -57,10 +57,11 @@ func (c *SSHAdminClient) Exec(ctx context.Context, command string) (string, erro
 	}
 
 	config := &ssh.ClientConfig{
-		// exe.dev authenticates purely by SSH key identity; the username
-		// value itself does not appear to be checked (unconfirmed — the
-		// SSH protocol requires some value, so this is a placeholder).
-		User:            "exe",
+		// exe.dev's own docs: "When you SSH in, you are root, you have apt
+		// and systemd." Confirmed needed, not just documented: the
+		// previous placeholder username landed as a non-root user that
+		// couldn't mkdir under /root, breaking the repo clone.
+		User:            "root",
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(c.Signer)},
 		HostKeyCallback: c.hostKeyCallback,
 		Timeout:         timeout,
