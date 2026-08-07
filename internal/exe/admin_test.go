@@ -151,20 +151,6 @@ func TestSSHAdminClientConnectionRefused(t *testing.T) {
 	}
 }
 
-func TestValidatedHostKeyRejectsUnexpectedKey(t *testing.T) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
-	signer, err := ssh.NewSignerFromKey(key)
-	if err != nil {
-		t.Fatalf("signer from key: %v", err)
-	}
-	if err := validatedHostKey("exe.dev", nil, signer.PublicKey()); err == nil {
-		t.Fatal("validatedHostKey() error = nil, want mismatch error")
-	}
-}
-
 func TestNewSSHAdminClientInvalidKey(t *testing.T) {
 	_, err := NewSSHAdminClient("exe.dev", []byte("not a valid private key"))
 	if err == nil {

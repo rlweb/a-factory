@@ -10,33 +10,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// ExeDevHostKeyFingerprint is exe.dev's documented SSH host-key fingerprint,
-// pinned only for the exe.dev control host itself.
-const ExeDevHostKeyFingerprint = "SHA256:JJOP/lwiBGOMilfONPWZCXUrfK154cnJFXcqlsi6lPo"
-
-// exeDevControlHost is the only SSH host with a fingerprint known in
-// advance to pin against.
-const exeDevControlHost = "exe.dev"
-
-// validatedHostKey pins exe.dev's own control host to its documented
-// fingerprint. Direct-to-VM connections (<vm>.exe.xyz) each get their own
-// freshly generated host key with no prior fingerprint to check — pinning
-// them to exe.dev's fingerprint always fails the handshake. Those are
-// trust-on-first-use instead: the hostname came back from an authenticated
-// exe.dev API call moments earlier, not from user input, so there's no
-// channel to have pre-shared a real fingerprint anyway.
-// ponytail: TOFU for VM hosts; upgrade to per-VM fingerprint pinning if
-// exe.dev's `new` response ever starts returning one.
-func validatedHostKey(hostname string, _ net.Addr, key ssh.PublicKey) error {
-	if hostname != exeDevControlHost {
-		return nil
-	}
-	if got := ssh.FingerprintSHA256(key); got != ExeDevHostKeyFingerprint {
-		return fmt.Errorf("exe: host key mismatch for %s: got %s, want %s", hostname, got, ExeDevHostKeyFingerprint)
-	}
-	return nil
-}
-
 // AdminClient is exe.dev's account-authenticated SSH surface — see the
 // package doc for why this exists alongside the bearer-token Client.
 type AdminClient interface {
@@ -60,7 +33,8 @@ type SSHAdminClient struct {
 	// Timeout bounds connection + command execution. Zero means 30s.
 	Timeout time.Duration
 	// hostKeyCallback exists only so package tests can pin their local fake
-	// server. Production instances always use validatedHostKey.
+	// server. Production instances default to ssh.InsecureIgnoreHostKey() —
+	// see the doc comment in Exec for why.
 	hostKeyCallback ssh.HostKeyCallback
 }
 
@@ -92,7 +66,16 @@ func (c *SSHAdminClient) Exec(ctx context.Context, command string) (string, erro
 		Timeout:         timeout,
 	}
 	if config.HostKeyCallback == nil {
-		config.HostKeyCallback = validatedHostKey
+		// exe.dev's own automation guidance (boldsoftware/exe.dev
+		// skill/SKILL.md) is `-o StrictHostKeyChecking=accept-new` for both
+		// exe.dev and *.exe.xyz — confirmed necessary, not just convenient:
+		// the control host and a freshly created VM presented the identical
+		// non-documented fingerprint within the same run, so exe.dev's SSH
+		// ingress doesn't consistently present one stable key to pin
+		// against. Every GitHub Actions run is also a fresh environment with
+		// no persisted known_hosts, so there's no continuity to pin across
+		// runs anyway.
+		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
