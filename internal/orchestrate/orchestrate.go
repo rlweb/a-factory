@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -123,6 +124,8 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 
 	vm := VMName(o.Config.VMPrefix, d.Issue)
 
+	log.Printf("orchestrate: provision #%d: creating VM %s (image=%s cpu=%s memory=%s disk=%s)",
+		d.Issue, vm, o.Config.BoxImage, o.Config.VMCPU, o.Config.VMMemory, o.Config.VMDisk)
 	newBody, err := o.Exe.Exec(ctx, createVMCommand(vm, o.Config))
 	if err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: create VM: %w", d.Issue, err)
@@ -134,6 +137,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 	if newResult.VMName != vm {
 		return fmt.Errorf("orchestrate: provision #%d: exe.dev created VM %q, expected %q", d.Issue, newResult.VMName, vm)
 	}
+	log.Printf("orchestrate: provision #%d: VM %s created", d.Issue, vm)
 
 	committed := false
 	defer func() {
@@ -145,9 +149,11 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 	if err := o.waitReady(ctx, vm); err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: wait ready: %w", d.Issue, err)
 	}
+	log.Printf("orchestrate: provision #%d: shelley on %s is ready", d.Issue, vm)
 
 	ctrlAdmin := o.Admin(exeControlHost)
 
+	log.Printf("orchestrate: provision #%d: minting Shelley key for %s", d.Issue, vm)
 	mintOut, err := ctrlAdmin.Exec(ctx, mintKeyCommand(vm, o.Config.ShelleyTokenExpiry))
 	if err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: mint Shelley key: %w", d.Issue, err)
@@ -157,6 +163,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 		return fmt.Errorf("orchestrate: provision #%d: %w", d.Issue, err)
 	}
 
+	log.Printf("orchestrate: provision #%d: looking up GitHub integration for %s/%s", d.Issue, o.RepoOwner, o.RepoName)
 	listOut, err := ctrlAdmin.Exec(ctx, integrationsListCommand())
 	if err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: list GitHub integrations: %w", d.Issue, err)
@@ -169,17 +176,20 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 			o.RepoOwner, o.RepoName,
 		))
 	}
+	log.Printf("orchestrate: provision #%d: attaching integration %s to %s", d.Issue, integrationName, vm)
 	if _, err := ctrlAdmin.Exec(ctx, attachIntegrationCommand(integrationName, vm)); err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: attach GitHub integration: %w", d.Issue, err)
 	}
 
 	vmAdmin := o.Admin(vm + vmHostSuffix)
+	log.Printf("orchestrate: provision #%d: cloning %s/%s onto %s", d.Issue, o.RepoOwner, o.RepoName, vm)
 	if _, err := vmAdmin.Exec(ctx, cloneCommand(integrationName, o.RepoOwner, o.RepoName)); err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: clone repo: %w", d.Issue, err)
 	}
 
 	sh := o.NewShelley(vm, token)
 
+	log.Printf("orchestrate: provision #%d: registering model %s", d.Issue, result.Model)
 	modelID, err := sh.UpsertCustomModel(ctx, shelley.CustomModel{
 		DisplayName:  result.Model,
 		ProviderType: "openai",
@@ -197,6 +207,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 		return fmt.Errorf("orchestrate: provision #%d: render prompt: %w", d.Issue, err)
 	}
 
+	log.Printf("orchestrate: provision #%d: seeding Shelley conversation on model %s", d.Issue, modelID)
 	conversationID, err := sh.NewConversation(ctx, modelID, prompt)
 	if err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: seed conversation: %w", d.Issue, err)
@@ -209,6 +220,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 		return fmt.Errorf("orchestrate: provision #%d: post state comment: %w", d.Issue, err)
 	}
 
+	log.Printf("orchestrate: provision #%d: done, conversation %s on %s", d.Issue, conversationID, vm)
 	committed = true
 	return nil
 }
@@ -220,8 +232,13 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 // already canceled/timed out.
 func (o *Orchestrator) cleanupFailedProvision(vm string) {
 	ctx := context.WithoutCancel(context.Background())
-	_, _ = o.Exe.Exec(ctx, destroyVMCommand(vm))
-	_, _ = o.Admin(exeControlHost).Exec(ctx, removeKeyCommand(vm))
+	log.Printf("orchestrate: provision: cleaning up failed provision of %s", vm)
+	if _, err := o.Exe.Exec(ctx, destroyVMCommand(vm)); err != nil {
+		log.Printf("orchestrate: provision: cleanup: destroy VM %s failed: %v", vm, err)
+	}
+	if _, err := o.Admin(exeControlHost).Exec(ctx, removeKeyCommand(vm)); err != nil {
+		log.Printf("orchestrate: provision: cleanup: remove Shelley key for %s failed: %v", vm, err)
+	}
 }
 
 func (o *Orchestrator) waitReady(ctx context.Context, vm string) error {
@@ -236,11 +253,13 @@ func (o *Orchestrator) waitReady(ctx context.Context, vm string) error {
 
 	admin := o.Admin(vm + vmHostSuffix)
 	deadline := time.Now().Add(timeout)
-	for {
+	for attempt := 1; ; attempt++ {
 		out, err := admin.Exec(ctx, versionCheckCommand())
 		if err == nil && strings.TrimSpace(out) == "200" {
 			return nil
 		}
+		log.Printf("orchestrate: provision: waiting for shelley on %s (attempt %d, out=%q err=%v)",
+			vm, attempt, strings.TrimSpace(out), err)
 		if time.Now().After(deadline) {
 			return fmt.Errorf("shelley on %s did not become ready within %s", vm, timeout)
 		}
