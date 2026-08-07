@@ -91,7 +91,8 @@ type Orchestrator struct {
 	// created box to come up. This is a normal bounded startup wait, not
 	// the prohibited "poll the agent for completion" pattern — see
 	// AGENTS.md's "No polling from GitHub Actions" section. Zero values
-	// default to 2m/3s.
+	// default to 6m/3s (image now pulls Node+Playwright+Chromium, so cold
+	// boot is slower than the old exeuntu-only image).
 	ReadyTimeout  time.Duration
 	ReadyInterval time.Duration
 }
@@ -226,7 +227,7 @@ func (o *Orchestrator) cleanupFailedProvision(vm string) {
 func (o *Orchestrator) waitReady(ctx context.Context, vm string) error {
 	timeout := o.ReadyTimeout
 	if timeout == 0 {
-		timeout = 2 * time.Minute
+		timeout = 6 * time.Minute
 	}
 	interval := o.ReadyInterval
 	if interval == 0 {
