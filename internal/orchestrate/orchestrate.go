@@ -565,6 +565,14 @@ const workspaceDir = "/home/exedev/workspace"
 // the system config (not --global) makes every user trust this one path,
 // covering both this command's own root-run git calls and exedev's later
 // ones, regardless of which user actually ends up owning the directory.
+//
+// The trailing `chown -R exedev:exedev` covers what safe.directory can't:
+// it only stops git itself refusing to operate, it doesn't change actual
+// file permissions, and Shelley needs to genuinely read/write here, not
+// just run git commands. Every git operation above runs as root and would
+// otherwise leave root-owned files behind — freshly cloned in the plain
+// case, or re-touched inside .git and whatever changed since the bake in
+// the refresh case — so this must run last, after all git operations.
 func cloneCommand(owner, repo string) string {
 	url := fmt.Sprintf("https://%s/%s/%s.git", githubIntegrationProxyHost, owner, repo)
 	return fmt.Sprintf(
@@ -572,7 +580,8 @@ func cloneCommand(owner, repo string) string {
 			"if [ -d %[1]s/.git ]; then "+
 			"cd %[1]s && git remote set-url origin %[2]s && "+
 			"git fetch --depth=1 origin HEAD && git reset --hard FETCH_HEAD && git clean -fd; "+
-			"else git clone %[2]s %[1]s; fi",
+			"else git clone %[2]s %[1]s; fi && "+
+			"chown -R exedev:exedev %[1]s",
 		workspaceDir, url,
 	)
 }

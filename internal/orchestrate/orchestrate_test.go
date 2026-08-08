@@ -369,6 +369,7 @@ func TestCloneCommandIsSelfDetectingPreBakedVsFreshClone(t *testing.T) {
 		"git reset --hard FETCH_HEAD",
 		"git clean -fd",                             // drops dirty/untracked state, keeps node_modules etc.
 		"else git clone " + wantURL + " " + workspaceDir, // unchanged fresh-clone fallback
+		"chown -R exedev:exedev " + workspaceDir,    // Shelley (exedev) needs to actually write here, not just satisfy git
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("cloneCommand() = %q, want it to contain %q", got, want)
