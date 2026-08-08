@@ -35,6 +35,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod -R a+rX /ms-playwright \
     && rm -rf /var/lib/apt/lists/*
 
+# The workspace orchestrate.Provision clones/refreshes into is created and
+# git-operated-on by root over SSH, but Shelley's own later git usage runs
+# as `exedev` — a different user, which git's dubious-ownership check (no
+# root special case) would otherwise refuse regardless of who owns it. Only
+# fixable here, at build time: /etc is part of the read-only base image
+# layer at VM runtime, so `git config --system` over SSH after boot always
+# fails with a permission error. Baking it into the image instead works
+# because reads of a read-only layer are still fine — only writes aren't.
+RUN git config --system --add safe.directory /home/exedev/workspace
+
 # Pinned to a release tag, not `main` — these skills have had breaking
 # releases (see AGENTS.md).
 ARG SKILLS_REF=v1.2.0

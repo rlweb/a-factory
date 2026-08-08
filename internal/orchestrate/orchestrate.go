@@ -557,27 +557,25 @@ const workspaceDir = "/home/exedev/workspace"
 // unchanged from before — every existing non-pre-baked consumer never has
 // workspaceDir/.git present, so it always takes this branch.
 //
-// The leading `git config --system safe.directory` isn't optional: git
-// refuses to operate on a repo owned by a different user than whoever's
-// running git — a deliberate anti-confused-deputy check that does NOT
-// special-case root — and Shelley's own git usage later runs as `exedev`,
-// a different user than this AdminClient's SSH session (root). Writing to
-// the system config (not --global) makes every user trust this one path,
-// covering both this command's own root-run git calls and exedev's later
-// ones, regardless of which user actually ends up owning the directory.
+// Git refuses to operate on a repo owned by a different user than whoever's
+// running git — a deliberate anti-confused-deputy check with no root
+// special case — and Shelley's own later git usage runs as `exedev`, a
+// different user than this AdminClient's SSH session (root). Trusting the
+// path is handled at image-build time (`git config --system` in
+// image/Dockerfile, baked into /etc/gitconfig — readable by every user,
+// unlike a runtime SSH attempt: /etc is part of exe.dev's read-only base
+// image layer at VM runtime, so writing there over SSH always fails).
 //
-// The trailing `chown -R exedev:exedev` covers what safe.directory can't:
-// it only stops git itself refusing to operate, it doesn't change actual
-// file permissions, and Shelley needs to genuinely read/write here, not
-// just run git commands. Every git operation above runs as root and would
-// otherwise leave root-owned files behind — freshly cloned in the plain
+// The trailing `chown -R exedev:exedev` handles the part that can't be
+// pre-baked: actual file permissions. Every git operation above runs as
+// root and leaves root-owned files behind — freshly cloned in the plain
 // case, or re-touched inside .git and whatever changed since the bake in
-// the refresh case — so this must run last, after all git operations.
+// the refresh case — so Shelley (exedev) needs this to genuinely
+// read/write here, not just satisfy git's ownership check.
 func cloneCommand(owner, repo string) string {
 	url := fmt.Sprintf("https://%s/%s/%s.git", githubIntegrationProxyHost, owner, repo)
 	return fmt.Sprintf(
-		"git config --system safe.directory %[1]s && "+
-			"if [ -d %[1]s/.git ]; then "+
+		"if [ -d %[1]s/.git ]; then "+
 			"cd %[1]s && git remote set-url origin %[2]s && "+
 			"git fetch --depth=1 origin HEAD && git reset --hard FETCH_HEAD && git clean -fd; "+
 			"else git clone %[2]s %[1]s; fi && "+

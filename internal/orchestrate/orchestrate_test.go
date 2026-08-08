@@ -362,7 +362,6 @@ func TestCloneCommandIsSelfDetectingPreBakedVsFreshClone(t *testing.T) {
 	const wantURL = "https://github.int.exe.xyz/rlweb/example.git"
 
 	for _, want := range []string{
-		"git config --system safe.directory " + workspaceDir, // trusts the dir regardless of which user (root here, exedev later) owns it
 		"if [ -d " + workspaceDir + "/.git ]",       // self-detects a pre-baked checkout
 		"git remote set-url origin " + wantURL,      // repoints origin at the proxy URL
 		"git fetch --depth=1 origin HEAD",           // tracks the remote's default branch, no name needed
