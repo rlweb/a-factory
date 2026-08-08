@@ -121,7 +121,41 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 		))
 	}
 
+	// Idempotency: a duplicate/replayed "labeled" event (or a manual
+	// relabel) shouldn't spin up a second box for an issue that's already
+	// provisioned — skip rather than orphaning the first one.
+	comments, err := o.GitHub.ListComments(ctx, d.Issue)
+	if err != nil {
+		return fmt.Errorf("orchestrate: provision #%d: check existing state: %w", d.Issue, err)
+	}
+	if _, alreadyProvisioned := state.FindLatest(o.Config.StateMarkerPrefix, comments); alreadyProvisioned {
+		log.Printf("orchestrate: provision #%d: already provisioned, skipping", d.Issue)
+		return nil
+	}
+
 	vm := VMName(o.Config.VMPrefix, d.Issue)
+
+	// Defensive: a prior attempt may have crashed or failed cleanup (its
+	// destroy call can itself lack permission — see AGENTS.md), leaving an
+	// orphaned box squatting this VM's deterministic name. We've just
+	// confirmed above there's no live conversation for this issue, so it's
+	// safe to clear it before creating fresh rather than 422ing on `new`.
+	if lsBody, err := o.Exe.Exec(ctx, listVMsCommand()); err != nil {
+		log.Printf("orchestrate: provision #%d: list VMs (pre-check): %v", d.Issue, err)
+	} else if vms, err := exe.ParseLS(lsBody); err != nil {
+		log.Printf("orchestrate: provision #%d: parse VM list (pre-check): %v", d.Issue, err)
+	} else {
+		for _, existing := range vms {
+			if existing.VMName != vm {
+				continue
+			}
+			log.Printf("orchestrate: provision #%d: destroying orphaned box %s before recreating", d.Issue, vm)
+			if _, err := o.Exe.Exec(ctx, destroyVMCommand(vm)); err != nil {
+				log.Printf("orchestrate: provision #%d: destroy orphaned box %s: %v", d.Issue, vm, err)
+			}
+			break
+		}
+	}
 
 	log.Printf("orchestrate: provision #%d: creating VM %s (image=%s cpu=%s memory=%s disk=%s)",
 		d.Issue, vm, o.Config.BoxImage, o.Config.VMCPU, o.Config.VMMemory, o.Config.VMDisk)

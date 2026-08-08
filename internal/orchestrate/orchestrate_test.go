@@ -236,9 +236,15 @@ func TestProvisionSuccess(t *testing.T) {
 		t.Fatalf("Provision() error = %v", err)
 	}
 
-	// A VM was created.
-	if len(fakeExe.Calls) < 1 || !strings.HasPrefix(fakeExe.Calls[0], "new ") || !strings.Contains(fakeExe.Calls[0], vm) {
-		t.Fatalf("exe.Calls = %+v, want a create-VM call naming %s first", fakeExe.Calls, vm)
+	// A VM was created (after the pre-check `ls`, so not necessarily first).
+	var sawCreate bool
+	for _, c := range fakeExe.Calls {
+		if strings.HasPrefix(c, "new ") && strings.Contains(c, vm) {
+			sawCreate = true
+		}
+	}
+	if !sawCreate {
+		t.Fatalf("exe.Calls = %+v, want a create-VM call naming %s", fakeExe.Calls, vm)
 	}
 
 	// Readiness was checked directly against the VM's own host.
@@ -382,6 +388,61 @@ func TestProvisionCreateVMNameMismatchErrors(t *testing.T) {
 	d := router.Decision{Action: router.ActionProvision, Issue: 1, Labels: []string{"type:ticket"}}
 	if err := o.Provision(context.Background(), d); err == nil {
 		t.Fatal("Provision() error = nil, want an error when exe.dev's vm_name doesn't match what we asked for")
+	}
+}
+
+func TestProvisionSkipsIfAlreadyProvisioned(t *testing.T) {
+	fakeExe := &exe.Fake{Handler: happyPathExeHandler("unused")}
+	admin := &fakeAdmin{}
+	gh := newFakeGitHub()
+	sr := newShelleyRegistry()
+	o := newTestOrchestrator(t, fakeExe, admin, gh, sr)
+
+	gh.comments[45] = []state.Comment{{Body: state.Format(o.Config.StateMarkerPrefix, state.State{
+		VM: "a-factory-issue-45", Conversation: "c1", Mode: "ticket", Model: "deepseek-v4-flash-opencode-ai",
+	})}}
+
+	d := router.Decision{Action: router.ActionProvision, Issue: 45, Labels: []string{"type:ticket"}}
+	if err := o.Provision(context.Background(), d); err != nil {
+		t.Fatalf("Provision() error = %v, want nil (already-provisioned is a no-op, not an error)", err)
+	}
+	if len(fakeExe.Calls) != 0 {
+		t.Errorf("exe.Calls = %+v, want no exe.dev calls for an already-provisioned issue", fakeExe.Calls)
+	}
+}
+
+func TestProvisionDestroysOrphanedVMBeforeRecreating(t *testing.T) {
+	vm := "a-factory-issue-46"
+	fakeExe := &exe.Fake{Handler: func(command string) ([]byte, error) {
+		if command == "ls" {
+			return []byte(`{"vms":[{"vm_name":"` + vm + `","tags":["a-factory"]}]}`), nil
+		}
+		return happyPathExeHandler(vm)(command)
+	}}
+	admin := &fakeAdmin{Handler: happyPathAdminHandler(vm, "rlweb-example", "rlweb", "example", "exe1.TESTTOKEN")}
+	gh := newFakeGitHub()
+	sr := newShelleyRegistry()
+	o := newTestOrchestrator(t, fakeExe, admin, gh, sr)
+
+	d := router.Decision{Action: router.ActionProvision, Issue: 46, Labels: []string{"type:ticket"}}
+	if err := o.Provision(context.Background(), d); err != nil {
+		t.Fatalf("Provision() error = %v", err)
+	}
+
+	var sawDestroyBeforeCreate, sawCreate bool
+	for _, c := range fakeExe.Calls {
+		switch {
+		case c == "rm "+vm:
+			if sawCreate {
+				t.Errorf("exe.Calls = %+v, want the orphaned box destroyed before recreating, not after", fakeExe.Calls)
+			}
+			sawDestroyBeforeCreate = true
+		case strings.HasPrefix(c, "new ") && strings.Contains(c, vm):
+			sawCreate = true
+		}
+	}
+	if !sawDestroyBeforeCreate {
+		t.Errorf("exe.Calls = %+v, want the pre-existing orphaned box destroyed", fakeExe.Calls)
 	}
 }
 
