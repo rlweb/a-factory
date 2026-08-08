@@ -556,10 +556,20 @@ const workspaceDir = "/home/exedev/workspace"
 // caches, defeating the point of pre-baking). Otherwise, plain git clone,
 // unchanged from before — every existing non-pre-baked consumer never has
 // workspaceDir/.git present, so it always takes this branch.
+//
+// The leading `git config --system safe.directory` isn't optional: git
+// refuses to operate on a repo owned by a different user than whoever's
+// running git — a deliberate anti-confused-deputy check that does NOT
+// special-case root — and Shelley's own git usage later runs as `exedev`,
+// a different user than this AdminClient's SSH session (root). Writing to
+// the system config (not --global) makes every user trust this one path,
+// covering both this command's own root-run git calls and exedev's later
+// ones, regardless of which user actually ends up owning the directory.
 func cloneCommand(owner, repo string) string {
 	url := fmt.Sprintf("https://%s/%s/%s.git", githubIntegrationProxyHost, owner, repo)
 	return fmt.Sprintf(
-		"if [ -d %[1]s/.git ]; then "+
+		"git config --system safe.directory %[1]s && "+
+			"if [ -d %[1]s/.git ]; then "+
 			"cd %[1]s && git remote set-url origin %[2]s && "+
 			"git fetch --depth=1 origin HEAD && git reset --hard FETCH_HEAD && git clean -fd; "+
 			"else git clone %[2]s %[1]s; fi",
