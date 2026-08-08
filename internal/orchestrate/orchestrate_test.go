@@ -261,8 +261,8 @@ func TestProvisionSuccess(t *testing.T) {
 			}
 		case strings.HasPrefix(c.Command, "git clone") && c.Host == vm+vmHostSuffix:
 			sawClone = true
-			if !strings.Contains(c.Command, "rlweb-example.int.exe.xyz/rlweb/example.git") {
-				t.Errorf("clone command = %q, want the integration-named host", c.Command)
+			if !strings.Contains(c.Command, "github.int.exe.xyz/rlweb/example.git") {
+				t.Errorf("clone command = %q, want the fixed GitHub-integration proxy host", c.Command)
 			}
 		}
 	}

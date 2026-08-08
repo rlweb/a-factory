@@ -182,7 +182,7 @@ func (o *Orchestrator) Provision(ctx context.Context, d router.Decision) (err er
 
 	vmAdmin := o.Admin(vm + vmHostSuffix)
 	log.Printf("orchestrate: provision #%d: cloning %s/%s onto %s", d.Issue, o.RepoOwner, o.RepoName, vm)
-	if _, err := vmAdmin.Exec(ctx, cloneCommand(integrationName, o.RepoOwner, o.RepoName)); err != nil {
+	if _, err := vmAdmin.Exec(ctx, cloneCommand(o.RepoOwner, o.RepoName)); err != nil {
 		return fmt.Errorf("orchestrate: provision #%d: clone repo: %w", d.Issue, err)
 	}
 
@@ -438,6 +438,10 @@ func createVMCommand(vm string, cfg config.Config) string {
 	if cfg.VMDisk != "" {
 		args = append(args, "--disk="+shellQuote(cfg.VMDisk))
 	}
+	// GH_HOST always points `gh` at exe.dev's GitHub-integration proxy —
+	// not a per-repo choice, so it's unconditional rather than routed
+	// through cfg.VMEnv.
+	args = append(args, "--env", shellQuote("GH_HOST="+githubIntegrationProxyHost))
 	for _, env := range cfg.VMEnv {
 		args = append(args, "--env", shellQuote(env))
 	}
@@ -495,13 +499,16 @@ func versionCheckCommand() string {
 	return fmt.Sprintf("curl -sf -o /dev/null -w '%%{http_code}' http://localhost:%d/version", shelley.DefaultPort)
 }
 
-// cloneCommand clones owner/repo through exe.dev's GitHub-integration proxy
-// — the hostname is the INTEGRATION'S OWN NAME (confirmed; exe.dev's docs
-// example "repo.int.exe.xyz" is a placeholder, not a literal host — see
-// docs/spike-findings.md), not a fixed value. No PAT or secret ever touches
-// the box. Clones under /home/exedev — exe.dev's own documented workspace
-// directory (confirmed: /root wasn't writable even as root).
-func cloneCommand(integrationName, owner, repo string) string {
-	url := fmt.Sprintf("https://%s.int.exe.xyz/%s/%s.git", integrationName, owner, repo)
+// githubIntegrationProxyHost is exe.dev's fixed GitHub-integration proxy
+// (see https://exe.dev/docs/integrations-github) — one host for every
+// integration on the account, disambiguated by the owner/repo path, not a
+// per-integration subdomain. No PAT or secret ever touches the box.
+const githubIntegrationProxyHost = "github.int.exe.xyz"
+
+// cloneCommand clones owner/repo through the GitHub-integration proxy.
+// Clones under /home/exedev — exe.dev's own documented workspace directory
+// (confirmed: /root wasn't writable even as root).
+func cloneCommand(owner, repo string) string {
+	url := fmt.Sprintf("https://%s/%s/%s.git", githubIntegrationProxyHost, owner, repo)
 	return fmt.Sprintf("git clone %s /home/exedev/workspace", url)
 }

@@ -103,13 +103,19 @@ never blocking the caller.
 Via an exe.dev GitHub integration, configured once per repo through the
 exe.dev dashboard OAuth flow, then attached to each box at Provision time
 (`integrations attach <name> vm:<vm>`). The clone/`gh` hostname is the
-**integration's own name** — e.g. `<integration-name>.int.exe.xyz` — not a
-fixed placeholder (exe.dev's own docs example, `repo.int.exe.xyz`, uses
-`repo` as a stand-in for this, which reads as a literal hostname but isn't
-one — confirmed the hard way in `docs/spike-findings.md`).
-`internal/orchestrate.Provision` looks the integration up via
-`integrations list` (filtered by `repos=<owner>/<repo>`) rather than
-assuming a naming convention.
+**fixed** `github.int.exe.xyz` proxy (see
+https://exe.dev/docs/integrations-github) — one host for every integration
+on the account, disambiguated by the `owner/repo` path, not a
+per-integration subdomain (an earlier version of this doc claimed the
+opposite based on spike testing; exe.dev's proxy behavior has since
+changed, or the spike's finding was wrong from the start — either way,
+the fixed hostname is what's confirmed working now).
+`internal/orchestrate.Provision` still looks the integration up via
+`integrations list` (filtered by `repos=<owner>/<repo>`) to attach it to
+the box, but no longer uses its name for the clone URL.
+`GH_HOST=github.int.exe.xyz` is also exported into every VM's environment
+at creation time so the agent's own `gh` usage picks up the proxy
+automatically.
 
 ## No polling from GitHub Actions
 
