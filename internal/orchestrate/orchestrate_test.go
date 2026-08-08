@@ -193,7 +193,7 @@ func happyPathAdminHandler(vm, integrationName, owner, repo, token string) func(
 			return integrationName + "  github  repos=" + owner + "/" + repo + "  tag:x\n", nil
 		case strings.HasPrefix(command, "integrations attach"):
 			return "Attached.\n", nil
-		case strings.HasPrefix(command, "git clone"):
+		case command == cloneCommand(owner, repo):
 			return "", nil
 		default:
 			return "", nil
@@ -265,7 +265,7 @@ func TestProvisionSuccess(t *testing.T) {
 			if !strings.Contains(c.Command, "rlweb-example") || !strings.Contains(c.Command, "vm:"+vm) {
 				t.Errorf("attach command = %q, want it to attach rlweb-example to vm:%s", c.Command, vm)
 			}
-		case strings.HasPrefix(c.Command, "git clone") && c.Host == vm+vmHostSuffix:
+		case c.Command == cloneCommand("rlweb", "example") && c.Host == vm+vmHostSuffix:
 			sawClone = true
 			if !strings.Contains(c.Command, "github.int.exe.xyz/rlweb/example.git") {
 				t.Errorf("clone command = %q, want the fixed GitHub-integration proxy host", c.Command)
@@ -353,6 +353,31 @@ func TestCreateVMCommandIncludesConfiguredOptions(t *testing.T) {
 	}
 	if strings.Contains(got, "--prompt") {
 		t.Errorf("createVMCommand() = %q, must not include --prompt", got)
+	}
+}
+
+func TestCloneCommandIsSelfDetectingPreBakedVsFreshClone(t *testing.T) {
+	got := cloneCommand("rlweb", "example")
+
+	const wantURL = "https://github.int.exe.xyz/rlweb/example.git"
+
+	for _, want := range []string{
+		"if [ -d " + workspaceDir + "/.git ]",       // self-detects a pre-baked checkout
+		"git remote set-url origin " + wantURL,      // repoints origin at the proxy URL
+		"git fetch --depth=1 origin HEAD",           // tracks the remote's default branch, no name needed
+		"git reset --hard FETCH_HEAD",
+		"git clean -fd",                             // drops dirty/untracked state, keeps node_modules etc.
+		"else git clone " + wantURL + " " + workspaceDir, // unchanged fresh-clone fallback
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("cloneCommand() = %q, want it to contain %q", got, want)
+		}
+	}
+	if strings.Contains(got, "-fdx") || strings.Contains(got, "-fx") {
+		t.Errorf("cloneCommand() = %q, must not use -x (would delete gitignored node_modules)", got)
+	}
+	if strings.Contains(got, "\n") {
+		t.Errorf("cloneCommand() = %q, must be a single-line command (one Exec call)", got)
 	}
 }
 

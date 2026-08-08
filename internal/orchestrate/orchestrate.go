@@ -539,10 +539,30 @@ func versionCheckCommand() string {
 // per-integration subdomain. No PAT or secret ever touches the box.
 const githubIntegrationProxyHost = "github.int.exe.xyz"
 
-// cloneCommand clones owner/repo through the GitHub-integration proxy.
-// Clones under /home/exedev — exe.dev's own documented workspace directory
-// (confirmed: /root wasn't writable even as root).
+// workspaceDir is exe.dev's own documented workspace directory (confirmed:
+// /root wasn't writable even as root). A pre-baked VM image can COPY a repo
+// checkout here at build time, .git included; cloneCommand self-detects
+// that and refreshes in place instead of cloning fresh.
+const workspaceDir = "/home/exedev/workspace"
+
+// cloneCommand gets owner/repo checked out at workspaceDir through the
+// GitHub-integration proxy, as a single shell command (one AdminClient.Exec
+// call over SSH). Self-detecting, no config flag: if workspaceDir/.git
+// already exists (a pre-baked image), repoint origin at the proxy — the
+// baked image's origin still points at the real github.com with no
+// credentials — then fetch and hard-reset onto the remote's default branch
+// (`origin HEAD`, so the branch name is never hardcoded) and `git clean -fd`
+// (not -fdx: that would also wipe gitignored node_modules/playwright
+// caches, defeating the point of pre-baking). Otherwise, plain git clone,
+// unchanged from before — every existing non-pre-baked consumer never has
+// workspaceDir/.git present, so it always takes this branch.
 func cloneCommand(owner, repo string) string {
 	url := fmt.Sprintf("https://%s/%s/%s.git", githubIntegrationProxyHost, owner, repo)
-	return fmt.Sprintf("git clone %s /home/exedev/workspace", url)
+	return fmt.Sprintf(
+		"if [ -d %[1]s/.git ]; then "+
+			"cd %[1]s && git remote set-url origin %[2]s && "+
+			"git fetch --depth=1 origin HEAD && git reset --hard FETCH_HEAD && git clean -fd; "+
+			"else git clone %[2]s %[1]s; fi",
+		workspaceDir, url,
+	)
 }
