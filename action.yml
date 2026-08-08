@@ -12,6 +12,9 @@ inputs:
     description: 'Token the Actions job uses to comment/label on issues and PRs (distinct from the in-VM agent''s own git/gh access, which goes through exe.dev''s GitHub integration)'
     required: false
     default: ${{ github.token }}
+  opencode-api-key:
+    description: 'OpenCode Zen API key. Used directly by this action to register the custom model with Shelley (a Provision-time HTTPS call from the runner, not something forwarded into the box) — distinct from vm-env, which only sets variables inside the VM itself.'
+    required: true
   vm-image:
     description: 'exe.dev VM image to provision (default: ghcr.io/rlweb/a-factory:latest)'
     required: false
@@ -88,6 +91,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         EXE_API_TOKEN: ${{ inputs.exe-api-token }}
         EXE_SSH_PRIVATE_KEY: ${{ inputs.exe-ssh-private-key }}
+        OPENCODE_API_KEY: ${{ inputs.opencode-api-key }}
         FACTORY_BOX_IMAGE: ${{ inputs.vm-image }}
         FACTORY_VM_PREFIX: ${{ inputs.vm-prefix }}
         FACTORY_VM_CPU: ${{ inputs.vm-cpu }}
